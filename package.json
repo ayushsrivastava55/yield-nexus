@@ -1,0 +1,41 @@
+{
+  "name": "yield-nexus",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered RWA Yield Orchestration Layer on Mantle Network",
+  "keywords": [
+    "mantle",
+    "rwa",
+    "erc-3643",
+    "defi",
+    "ai-agents",
+    "yield"
+  ],
+  "author": "Yield Nexus Team",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "contracts:compile": "bun run --filter contracts compile",
+    "contracts:test": "bun run --filter contracts test",
+    "contracts:deploy": "bun run --filter contracts deploy",
+    "web:dev": "bun run --filter web dev",
+    "web:build": "bun run --filter web build",
+    "backend:dev": "cd apps/backend && python -m uvicorn main:app --reload"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "bun@1.1.0",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

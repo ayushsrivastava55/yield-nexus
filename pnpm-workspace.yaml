@@ -1,0 +1,5 @@
+# Bun uses package.json workspaces field
+# This file kept for compatibility
+packages:
+  - "apps/*"
+  - "packages/*"
