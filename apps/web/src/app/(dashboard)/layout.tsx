@@ -1,6 +1,5 @@
-import { Header } from "@/components/layout/header";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
 
-// Prevent static prerendering of dashboard routes
 export const dynamic = "force-dynamic";
 
 export default function DashboardLayout({
@@ -10,8 +9,7 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      <main>{children}</main>
+      <DashboardShell>{children}</DashboardShell>
     </div>
   );
 }

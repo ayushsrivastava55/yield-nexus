@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getYieldOpportunities, getTopYields, getProtocolStats } from "@/lib/ai/yield-data";
+import { getYieldOpportunitiesAsync, getTopYieldsAsync, getRealYields } from "@/lib/ai/yield-data";
 
 export async function GET(req: Request) {
   try {
@@ -14,19 +14,20 @@ export async function GET(req: Request) {
     // If requesting top yields
     if (top) {
       const count = parseInt(top) || 5;
-      const topYields = getTopYields(count);
+      const topYields = await getTopYieldsAsync(count);
       return NextResponse.json({
         success: true,
         data: topYields,
         meta: {
           count: topYields.length,
           avgApy: topYields.reduce((sum, o) => sum + o.apy, 0) / topYields.length,
+          source: "defillama", // Indicate real data source
         },
       });
     }
 
-    // Filter yields based on params
-    const opportunities = getYieldOpportunities({
+    // Filter yields based on params - using real DeFiLlama data
+    const opportunities = await getYieldOpportunitiesAsync({
       minApy: minApy ? parseFloat(minApy) : undefined,
       maxRisk: maxRisk || undefined,
       protocol: protocol || undefined,
@@ -42,6 +43,7 @@ export async function GET(req: Request) {
         avgApy: opportunities.length > 0
           ? opportunities.reduce((sum, o) => sum + o.apy, 0) / opportunities.length
           : 0,
+        source: "defillama", // Real data from DeFiLlama API
       },
     });
   } catch (error) {

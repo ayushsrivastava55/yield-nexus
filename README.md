@@ -132,11 +132,12 @@ bun run deploy
 - **Standards:** ERC-3643, ERC-20, ERC-4626
 - **Automation:** Chainlink Automation
 
-### Backend (Planned)
+### AI Backend (Implemented)
 
-- **Framework:** FastAPI (Python)
-- **AI:** LangChain + LangGraph
-- **LLM:** GPT-4 / Claude
+- **Framework:** Next.js API Routes (Edge Runtime)
+- **AI SDK:** Vercel AI SDK + OpenAI
+- **LLM:** GPT-4o
+- **Endpoints:** `/api/ai/chat`, `/api/ai/analyze`, `/api/ai/strategy`, `/api/ai/yields`
 
 ## 📊 Features
 
@@ -149,13 +150,17 @@ bun run deploy
 - [x] Next.js dashboard UI
 - [x] Wallet connection (RainbowKit)
 - [x] Mantle network integration
+- [x] AI yield discovery agent (OpenAI GPT-4o)
+- [x] Yield discovery page with filters
+- [x] Agent management dashboard
+- [x] Compliance/KYC status page
+- [x] Streaming AI chat API
 
 ### 🔄 In Progress
 
-- [ ] AI yield discovery agent (LangChain)
-- [ ] Protocol integrations (Merchant Moe, INIT)
-- [ ] KYC onboarding flow
-- [ ] Agent creation wizard
+- [ ] Real protocol integrations (Merchant Moe, INIT Capital)
+- [ ] On-chain agent deployment
+- [ ] Live yield data feeds
 
 ### 📅 Planned
 

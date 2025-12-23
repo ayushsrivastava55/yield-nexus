@@ -1,7 +1,35 @@
 import { YieldOpportunity } from "./types";
+import { fetchMantleYields, fetchProtocolStats as fetchRealProtocolStats } from "../api/defillama";
 
-// Simulated yield data from Mantle protocols
-// In production, this would fetch real-time data from protocol APIs/subgraphs
+// Cache for real-time data
+let cachedYields: YieldOpportunity[] | null = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Fetch real yields with caching
+export async function getRealYields(): Promise<YieldOpportunity[]> {
+  const now = Date.now();
+  
+  if (cachedYields && now - cacheTimestamp < CACHE_DURATION) {
+    return cachedYields;
+  }
+
+  try {
+    const realYields = await fetchMantleYields();
+    if (realYields.length > 0) {
+      cachedYields = realYields;
+      cacheTimestamp = now;
+      return realYields;
+    }
+  } catch (error) {
+    console.error("Failed to fetch real yields, using fallback:", error);
+  }
+
+  // Fallback to static data if API fails
+  return MANTLE_YIELD_OPPORTUNITIES;
+}
+
+// Fallback static yield data (used when API is unavailable)
 export const MANTLE_YIELD_OPPORTUNITIES: YieldOpportunity[] = [
   // Merchant Moe DEX
   {
@@ -120,39 +148,69 @@ export const MANTLE_YIELD_OPPORTUNITIES: YieldOpportunity[] = [
   },
 ];
 
+// Filter helper function
+function filterYields(
+  opportunities: YieldOpportunity[],
+  filters?: {
+    minApy?: number;
+    maxRisk?: "low" | "medium" | "high";
+    protocol?: string;
+    type?: string;
+  }
+): YieldOpportunity[] {
+  let filtered = [...opportunities];
+
+  if (filters?.minApy) {
+    filtered = filtered.filter((o) => o.apy >= filters.minApy!);
+  }
+
+  if (filters?.maxRisk) {
+    const riskLevels = { low: 1, medium: 2, high: 3 };
+    const maxRiskLevel = riskLevels[filters.maxRisk];
+    filtered = filtered.filter((o) => riskLevels[o.risk] <= maxRiskLevel);
+  }
+
+  if (filters?.protocol) {
+    filtered = filtered.filter((o) =>
+      o.protocol.toLowerCase().includes(filters.protocol!.toLowerCase())
+    );
+  }
+
+  if (filters?.type) {
+    filtered = filtered.filter((o) => o.type === filters.type);
+  }
+
+  return filtered.sort((a, b) => b.apy - a.apy);
+}
+
+// ASYNC: Get real yield opportunities with filters
+export async function getYieldOpportunitiesAsync(filters?: {
+  minApy?: number;
+  maxRisk?: "low" | "medium" | "high";
+  protocol?: string;
+  type?: string;
+}): Promise<YieldOpportunity[]> {
+  const yields = await getRealYields();
+  return filterYields(yields, filters);
+}
+
+// SYNC: Get yield opportunities (uses fallback static data)
 export function getYieldOpportunities(filters?: {
   minApy?: number;
   maxRisk?: "low" | "medium" | "high";
   protocol?: string;
   type?: string;
 }): YieldOpportunity[] {
-  let opportunities = [...MANTLE_YIELD_OPPORTUNITIES];
-
-  if (filters?.minApy) {
-    opportunities = opportunities.filter((o) => o.apy >= filters.minApy!);
-  }
-
-  if (filters?.maxRisk) {
-    const riskLevels = { low: 1, medium: 2, high: 3 };
-    const maxRiskLevel = riskLevels[filters.maxRisk];
-    opportunities = opportunities.filter(
-      (o) => riskLevels[o.risk] <= maxRiskLevel
-    );
-  }
-
-  if (filters?.protocol) {
-    opportunities = opportunities.filter((o) =>
-      o.protocol.toLowerCase().includes(filters.protocol!.toLowerCase())
-    );
-  }
-
-  if (filters?.type) {
-    opportunities = opportunities.filter((o) => o.type === filters.type);
-  }
-
-  return opportunities.sort((a, b) => b.apy - a.apy);
+  return filterYields(MANTLE_YIELD_OPPORTUNITIES, filters);
 }
 
+// ASYNC: Get top yields from real data
+export async function getTopYieldsAsync(count: number = 5): Promise<YieldOpportunity[]> {
+  const yields = await getRealYields();
+  return yields.sort((a, b) => b.apy - a.apy).slice(0, count);
+}
+
+// SYNC: Get top yields (uses fallback static data)
 export function getTopYields(count: number = 5): YieldOpportunity[] {
   return [...MANTLE_YIELD_OPPORTUNITIES]
     .sort((a, b) => b.apy - a.apy)
