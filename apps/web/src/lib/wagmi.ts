@@ -57,7 +57,7 @@ export const config = getDefaultConfig({
   appName: "Yield Nexus",
   projectId,
   chains: [mantleMainnet, mantleSepolia, mainnet],
-  ssr: true,
+  ssr: false,
   storage: createStorage({
     storage: cookieStorage,
   }),

@@ -37,35 +37,37 @@ function formatCurrency(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
-// Recent activity - would come from event indexer in production
-const recentActivity = [
+// Contract deployment info - real deployed contracts on Mantle Sepolia
+const deployedContracts = [
   {
-    type: "Contract Deployed",
-    description: "YieldAgent on Mantle Sepolia",
-    amount: "",
-    time: "Just now",
-    positive: true,
+    type: "YieldAgent",
+    description: "Autonomous yield optimization",
+    address: CONTRACTS.mantleSepolia.yieldAgent,
   },
   {
-    type: "KYC System",
-    description: "IdentityRegistry initialized",
-    amount: "",
-    time: "Just now",
-    positive: true,
+    type: "StrategyRouter",
+    description: "Multi-protocol routing",
+    address: CONTRACTS.mantleSepolia.strategyRouter,
   },
   {
-    type: "Compliance",
-    description: "ComplianceModule configured",
-    amount: "",
-    time: "Just now",
-    positive: true,
+    type: "YieldVault",
+    description: "ERC-4626 yield vault",
+    address: CONTRACTS.mantleSepolia.yieldVault,
   },
   {
-    type: "RWA Token",
-    description: "ynRWA token deployed",
-    amount: "",
-    time: "Just now",
-    positive: true,
+    type: "RWAToken",
+    description: "ERC-3643 compliant token",
+    address: CONTRACTS.mantleSepolia.rwaToken,
+  },
+  {
+    type: "IdentityRegistry",
+    description: "KYC/AML compliance",
+    address: CONTRACTS.mantleSepolia.identityRegistry,
+  },
+  {
+    type: "ComplianceModule",
+    description: "Transfer restrictions",
+    address: CONTRACTS.mantleSepolia.complianceModule,
   },
 ];
 
@@ -217,52 +219,41 @@ export default function DashboardContent() {
 
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Recent Activity */}
+        {/* Deployed Contracts - Real On-Chain Data */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Recent Activity</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-lg">Deployed Contracts</CardTitle>
+            <Badge variant="outline" className="text-xs">Mantle Sepolia</Badge>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentActivity.map((activity, index) => (
+              {deployedContracts.map((contract, index) => (
                 <div
                   key={index}
                   className="flex items-center justify-between py-2 border-b last:border-0"
                 >
                   <div className="flex items-center gap-3">
-                    <div
-                      className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                        activity.positive
-                          ? "bg-green-500/10 text-green-500"
-                          : "bg-red-500/10 text-red-500"
-                      }`}
-                    >
-                      {activity.positive ? (
-                        <ArrowUpRight className="h-4 w-4" />
-                      ) : (
-                        <ArrowDownRight className="h-4 w-4" />
-                      )}
+                    <div className="h-8 w-8 rounded-full flex items-center justify-center bg-green-500/10 text-green-500">
+                      <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="font-medium text-sm">{activity.type}</p>
+                      <p className="font-medium text-sm">{contract.type}</p>
                       <p className="text-xs text-muted-foreground">
-                        {activity.description}
+                        {contract.description}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    {activity.amount && (
-                      <p
-                        className={`font-medium text-sm ${
-                          activity.positive ? "text-green-500" : "text-red-500"
-                        }`}
-                      >
-                        {activity.amount}
-                      </p>
-                    )}
+                    <a
+                      href={`https://sepolia.mantlescan.xyz/address/${contract.address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-mono text-primary hover:underline"
+                    >
+                      {contract.address.slice(0, 6)}...{contract.address.slice(-4)}
+                    </a>
                     <p className="text-xs text-muted-foreground">
-                      {activity.time}
+                      View on Explorer
                     </p>
                   </div>
                 </div>

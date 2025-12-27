@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,83 +17,22 @@ import {
   ArrowUpRight,
   ExternalLink,
   Sparkles,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 
-// Yield opportunities data (matches backend)
-const yieldOpportunities = [
-  {
-    id: "mm-meth-usdt",
-    protocol: "Merchant Moe",
-    pair: "mETH/USDT",
-    apy: 12.4,
-    tvl: 45000000,
-    risk: "medium",
-    type: "liquidity",
-  },
-  {
-    id: "mm-wmnt-usdc",
-    protocol: "Merchant Moe",
-    pair: "WMNT/USDC",
-    apy: 8.7,
-    tvl: 32000000,
-    risk: "medium",
-    type: "liquidity",
-  },
-  {
-    id: "mm-moe-wmnt",
-    protocol: "Merchant Moe",
-    pair: "MOE/WMNT",
-    apy: 24.5,
-    tvl: 12000000,
-    risk: "high",
-    type: "liquidity",
-  },
-  {
-    id: "init-usdy-loop",
-    protocol: "INIT Capital",
-    pair: "USDY Loop",
-    apy: 9.8,
-    tvl: 32000000,
-    risk: "low",
-    type: "lending",
-  },
-  {
-    id: "init-meth-lending",
-    protocol: "INIT Capital",
-    pair: "mETH Lending",
-    apy: 4.2,
-    tvl: 85000000,
-    risk: "low",
-    type: "lending",
-  },
-  {
-    id: "meth-staking",
-    protocol: "mETH Protocol",
-    pair: "ETH Staking",
-    apy: 5.2,
-    tvl: 1200000000,
-    risk: "low",
-    type: "staking",
-  },
-  {
-    id: "cmeth-restaking",
-    protocol: "mETH Protocol",
-    pair: "cmETH Restaking",
-    apy: 8.1,
-    tvl: 450000000,
-    risk: "medium",
-    type: "restaking",
-  },
-  {
-    id: "lendle-usdt",
-    protocol: "Lendle",
-    pair: "USDT Supply",
-    apy: 5.8,
-    tvl: 65000000,
-    risk: "low",
-    type: "lending",
-  },
-];
+interface YieldOpportunity {
+  id: string;
+  protocol: string;
+  pair: string;
+  apy: number;
+  tvl: number;
+  risk: "low" | "medium" | "high";
+  type: string;
+  apyBase?: number;
+  apyReward?: number;
+  isStablecoin?: boolean;
+}
 
 const riskColors = {
   low: "bg-green-500/10 text-green-500 border-green-500/20",
@@ -101,10 +40,50 @@ const riskColors = {
   high: "bg-red-500/10 text-red-500 border-red-500/20",
 };
 
+// Format currency helper
+function formatCurrency(value: number): string {
+  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`;
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
+  return `$${value.toFixed(0)}`;
+}
+
 export default function YieldContent() {
   const { isConnected } = useAccount();
   const [riskFilter, setRiskFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [yieldOpportunities, setYieldOpportunities] = useState<YieldOpportunity[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // Fetch real yield data from DeFiLlama API
+  const fetchYields = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/ai/yields");
+      const data = await response.json();
+      if (data.success && data.data) {
+        setYieldOpportunities(data.data);
+        setLastUpdated(new Date());
+      } else {
+        setError("Failed to fetch yield data");
+      }
+    } catch (err) {
+      setError("Network error fetching yields");
+      console.error("Yield fetch error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchYields();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchYields, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   if (!isConnected) {
     return (
@@ -143,16 +122,27 @@ export default function YieldContent() {
         <div>
           <h1 className="text-3xl font-bold">Yield Discovery</h1>
           <p className="mt-1 text-muted-foreground">
-            Explore DeFi yield opportunities across Mantle protocols
+            Real-time DeFi yields from Mantle protocols via DeFiLlama
           </p>
+          {lastUpdated && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </p>
+          )}
         </div>
-        <Button className="gradient-mantle">
-          <Sparkles className="mr-2 h-4 w-4" />
-          AI Recommendations
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchYields} disabled={isLoading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          <Button className="gradient-mantle">
+            <Sparkles className="mr-2 h-4 w-4" />
+            AI Recommendations
+          </Button>
+        </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats - Real Data */}
       <div className="grid gap-4 md:grid-cols-4 mb-8">
         <Card>
           <CardContent className="p-4">
@@ -161,7 +151,9 @@ export default function YieldContent() {
                 <TrendingUp className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{avgApy.toFixed(1)}%</p>
+                <p className="text-2xl font-bold">
+                  {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : `${avgApy.toFixed(2)}%`}
+                </p>
                 <p className="text-xs text-muted-foreground">Avg APY</p>
               </div>
             </div>
@@ -175,7 +167,7 @@ export default function YieldContent() {
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  ${(totalTvl / 1e9).toFixed(2)}B
+                  {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : formatCurrency(totalTvl)}
                 </p>
                 <p className="text-xs text-muted-foreground">Total TVL</p>
               </div>
@@ -189,7 +181,9 @@ export default function YieldContent() {
                 <Zap className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{yieldOpportunities.length}</p>
+                <p className="text-2xl font-bold">
+                  {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : yieldOpportunities.length}
+                </p>
                 <p className="text-xs text-muted-foreground">Opportunities</p>
               </div>
             </div>
@@ -202,13 +196,32 @@ export default function YieldContent() {
                 <ArrowUpRight className="h-5 w-5 text-purple-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">24.5%</p>
+                <p className="text-2xl font-bold">
+                  {isLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : yieldOpportunities.length > 0 ? (
+                    `${Math.max(...yieldOpportunities.map(o => o.apy)).toFixed(2)}%`
+                  ) : "N/A"}
+                </p>
                 <p className="text-xs text-muted-foreground">Best APY</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Error State */}
+      {error && (
+        <Card className="mb-6 border-red-500/50 bg-red-500/10">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Shield className="h-5 w-5 text-red-500" />
+            <p className="text-red-500">{error}</p>
+            <Button variant="outline" size="sm" onClick={fetchYields} className="ml-auto">
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <div className="flex gap-4 mb-6">
@@ -283,13 +296,20 @@ export default function YieldContent() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">APY</span>
-                    <span className="text-2xl font-bold text-primary">
-                      {opp.apy}%
-                    </span>
+                    <div className="text-right">
+                      <span className="text-2xl font-bold text-primary">
+                        {opp.apy?.toFixed(2)}%
+                      </span>
+                      {opp.apyBase !== undefined && opp.apyReward !== undefined && (
+                        <p className="text-xs text-muted-foreground">
+                          Base: {opp.apyBase?.toFixed(2)}% + Rewards: {opp.apyReward?.toFixed(2)}%
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">TVL</span>
-                    <span>${(opp.tvl / 1e6).toFixed(0)}M</span>
+                    <span className="font-medium">{formatCurrency(opp.tvl)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Type</span>
@@ -297,8 +317,13 @@ export default function YieldContent() {
                       {opp.type}
                     </Badge>
                   </div>
+                  {opp.isStablecoin && (
+                    <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                      Stablecoin Pool
+                    </Badge>
+                  )}
                   <Progress
-                    value={Math.min((opp.apy / 25) * 100, 100)}
+                    value={Math.min((opp.apy / 10) * 100, 100)}
                     className="h-1"
                   />
                   <div className="flex gap-2 pt-2">

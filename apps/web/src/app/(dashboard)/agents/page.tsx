@@ -1,9 +1,9 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import dynamicImport from "next/dynamic";
 import { Loader2 } from "lucide-react";
 
-const AgentsContent = dynamic(() => import("./agents-content"), {
+const AgentsContent = dynamicImport(() => import("./agents-content"), {
   ssr: false,
   loading: () => (
     <div className="flex min-h-[80vh] flex-col items-center justify-center">

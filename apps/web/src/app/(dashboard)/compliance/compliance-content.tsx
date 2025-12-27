@@ -19,39 +19,12 @@ import {
   Building,
   User,
   ArrowRight,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
-
-// KYC Status data
-const kycSteps = [
-  {
-    id: 1,
-    title: "Personal Information",
-    description: "Basic identity verification",
-    status: "completed",
-    icon: User,
-  },
-  {
-    id: 2,
-    title: "Document Verification",
-    description: "ID and proof of address",
-    status: "completed",
-    icon: FileText,
-  },
-  {
-    id: 3,
-    title: "Accreditation",
-    description: "Investor qualification",
-    status: "in_progress",
-    icon: Building,
-  },
-  {
-    id: 4,
-    title: "Compliance Review",
-    description: "Final approval",
-    status: "pending",
-    icon: Shield,
-  },
-];
+import { useKYCStatus, useRWAToken, useRWABalance } from "@/lib/contracts/hooks";
+import { useRegisterIdentity, useMintRWAToken } from "@/lib/contracts/write-hooks";
+import { CONTRACTS, KYCTier, getKYCTierName } from "@/lib/contracts/config";
 
 const statusIcons = {
   completed: CheckCircle,
@@ -67,7 +40,38 @@ const statusColors = {
 
 export default function ComplianceContent() {
   const { isConnected, address } = useAccount();
-  const [currentTier] = useState<"retail" | "accredited" | "institutional">("retail");
+  
+  // Real contract data
+  const { isVerified, kycTier, kycTierName, isLoading: kycLoading } = useKYCStatus(
+    address as `0x${string}` | undefined
+  );
+  const { name: tokenName, symbol, totalSupply, supplyCap, isLoading: tokenLoading } = useRWAToken();
+  const { balance, isLoading: balanceLoading } = useRWABalance(address as `0x${string}` | undefined);
+
+  // Contract write hooks
+  const { register, isPending: isRegistering, isSuccess: registerSuccess, hash: registerHash } = useRegisterIdentity();
+  const { mint, isPending: isMinting, isSuccess: mintSuccess, hash: mintHash } = useMintRWAToken();
+
+  // Handle KYC registration (demo - registers as Retail tier)
+  const handleRegisterKYC = () => {
+    if (address) {
+      register(address as `0x${string}`, 840, KYCTier.Retail); // 840 = USA country code
+    }
+  };
+
+  // Handle token minting (demo - mints 100 tokens)
+  const handleMintTokens = () => {
+    if (address) {
+      mint(address as `0x${string}`, "100");
+    }
+  };
+
+  // Determine current tier based on contract data
+  const currentTier = kycTier === KYCTier.Institutional 
+    ? "institutional" 
+    : kycTier === KYCTier.Accredited 
+    ? "accredited" 
+    : "retail";
 
   if (!isConnected) {
     return (
@@ -88,108 +92,153 @@ export default function ComplianceContent() {
     );
   }
 
-  const completedSteps = kycSteps.filter((s) => s.status === "completed").length;
-  const progressPercent = (completedSteps / kycSteps.length) * 100;
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Compliance Hub</h1>
         <p className="mt-1 text-muted-foreground">
-          Manage KYC verification and compliance requirements for RWA investments
+          On-chain KYC verification and RWA token management
         </p>
       </div>
 
-      {/* Status Overview */}
+      {/* Transaction Status */}
+      {(registerHash || mintHash) && (
+        <Card className="mb-6 border-primary/50 bg-primary/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            {(isRegistering || isMinting) ? (
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            ) : (registerSuccess || mintSuccess) ? (
+              <CheckCircle className="h-5 w-5 text-green-500" />
+            ) : (
+              <Clock className="h-5 w-5 text-yellow-500" />
+            )}
+            <div className="flex-1">
+              <p className="text-sm font-medium">
+                {isRegistering ? "Registering identity..." : 
+                 isMinting ? "Minting tokens..." :
+                 registerSuccess ? "Identity registered!" :
+                 mintSuccess ? "Tokens minted!" : "Transaction pending"}
+              </p>
+              <p className="text-xs text-muted-foreground font-mono">
+                {registerHash || mintHash}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <a 
+                href={`https://sepolia.mantlescan.xyz/tx/${registerHash || mintHash}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="h-4 w-4 mr-1" />
+                View
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Status Overview - Real Contract Data */}
       <div className="grid gap-6 md:grid-cols-3 mb-8">
         <Card className="md:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>KYC Status</CardTitle>
+                <CardTitle>On-Chain KYC Status</CardTitle>
                 <CardDescription>
-                  Complete verification to unlock higher investment limits
+                  Identity verification from IdentityRegistry contract
                 </CardDescription>
               </div>
-              <Badge
-                variant="outline"
-                className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-              >
-                In Progress
-              </Badge>
+              {kycLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Badge
+                  variant="outline"
+                  className={isVerified 
+                    ? "bg-green-500/10 text-green-500 border-green-500/20"
+                    : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
+                  }
+                >
+                  {isVerified ? "Verified" : "Not Verified"}
+                </Badge>
+              )}
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">
-                  Verification Progress
-                </span>
-                <span className="text-sm font-medium">
-                  {completedSteps}/{kycSteps.length} steps
-                </span>
+          <CardContent className="space-y-6">
+            {/* KYC Status Display */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-xs text-muted-foreground mb-1">Verification Status</p>
+                <p className="text-lg font-semibold flex items-center gap-2">
+                  {kycLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : isVerified ? (
+                    <>
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      Verified
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-5 w-5 text-yellow-500" />
+                      Pending
+                    </>
+                  )}
+                </p>
               </div>
-              <Progress value={progressPercent} className="h-2" />
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-xs text-muted-foreground mb-1">KYC Tier</p>
+                <p className="text-lg font-semibold">
+                  {kycLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    kycTierName
+                  )}
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              {kycSteps.map((step, index) => {
-                const StatusIcon = statusIcons[step.status as keyof typeof statusIcons];
-                const StepIcon = step.icon;
-                return (
-                  <div
-                    key={step.id}
-                    className={`flex items-center gap-4 p-4 rounded-lg border ${
-                      step.status === "in_progress"
-                        ? "border-primary bg-primary/5"
-                        : "border-border"
-                    }`}
-                  >
-                    <div
-                      className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                        step.status === "completed"
-                          ? "bg-green-500/10"
-                          : step.status === "in_progress"
-                          ? "bg-primary/10"
-                          : "bg-muted"
-                      }`}
-                    >
-                      <StepIcon
-                        className={`h-5 w-5 ${
-                          step.status === "completed"
-                            ? "text-green-500"
-                            : step.status === "in_progress"
-                            ? "text-primary"
-                            : "text-muted-foreground"
-                        }`}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-medium">{step.title}</h4>
-                        <StatusIcon
-                          className={`h-4 w-4 ${statusColors[step.status as keyof typeof statusColors]}`}
-                        />
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {step.description}
-                      </p>
-                    </div>
-                    {step.status === "in_progress" && (
-                      <Button size="sm">
-                        Continue
-                        <ArrowRight className="ml-1 h-3 w-3" />
-                      </Button>
-                    )}
-                    {step.status === "completed" && (
-                      <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
-                        Verified
-                      </Badge>
-                    )}
+            {/* Register KYC Action */}
+            {!isVerified && !kycLoading && (
+              <div className="p-4 rounded-lg border border-dashed">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium">Register Your Identity</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Complete on-chain KYC verification to access RWA investments
+                    </p>
                   </div>
-                );
-              })}
+                  <Button onClick={handleRegisterKYC} disabled={isRegistering}>
+                    {isRegistering ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Registering...
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="mr-2 h-4 w-4" />
+                        Register KYC
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Contract Info */}
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-xs text-muted-foreground mb-1">IdentityRegistry Contract</p>
+              <div className="flex items-center justify-between">
+                <p className="font-mono text-sm">{CONTRACTS.mantleSepolia.identityRegistry}</p>
+                <Button variant="ghost" size="sm" asChild>
+                  <a 
+                    href={`https://sepolia.mantlescan.xyz/address/${CONTRACTS.mantleSepolia.identityRegistry}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -329,6 +378,88 @@ export default function ComplianceContent() {
         </CardContent>
       </Card>
 
+      {/* RWA Token Management */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>RWA Token</CardTitle>
+          <CardDescription>
+            ERC-3643 compliant token on Mantle Sepolia
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-lg bg-muted">
+              <p className="text-xs text-muted-foreground mb-1">Token Name</p>
+              <p className="text-lg font-semibold">
+                {tokenLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : tokenName || "ynRWA"}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted">
+              <p className="text-xs text-muted-foreground mb-1">Your Balance</p>
+              <p className="text-lg font-semibold">
+                {balanceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : `${parseFloat(balance).toFixed(2)} ${symbol || "ynRWA"}`}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted">
+              <p className="text-xs text-muted-foreground mb-1">Total Supply</p>
+              <p className="text-lg font-semibold">
+                {tokenLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : `${parseFloat(totalSupply || "0").toFixed(0)}`}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted">
+              <p className="text-xs text-muted-foreground mb-1">Supply Cap</p>
+              <p className="text-lg font-semibold">
+                {tokenLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : `${parseFloat(supplyCap || "0").toLocaleString()}`}
+              </p>
+            </div>
+          </div>
+
+          {/* Mint Tokens Action (only if verified) */}
+          {isVerified && (
+            <div className="p-4 rounded-lg border border-dashed">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium">Mint RWA Tokens</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Mint 100 ynRWA tokens to your wallet (testnet only)
+                  </p>
+                </div>
+                <Button onClick={handleMintTokens} disabled={isMinting}>
+                  {isMinting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Minting...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight className="mr-2 h-4 w-4" />
+                      Mint Tokens
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Contract Info */}
+          <div className="p-3 bg-muted rounded-lg">
+            <p className="text-xs text-muted-foreground mb-1">RWAToken Contract</p>
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-sm">{CONTRACTS.mantleSepolia.rwaToken}</p>
+              <Button variant="ghost" size="sm" asChild>
+                <a 
+                  href={`https://sepolia.mantlescan.xyz/address/${CONTRACTS.mantleSepolia.rwaToken}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Wallet Info */}
       <Card>
         <CardHeader>
@@ -347,12 +478,21 @@ export default function ComplianceContent() {
                 {address?.slice(0, 6)}...{address?.slice(-4)}
               </p>
               <p className="text-xs text-muted-foreground">
-                Mantle Network
+                Mantle Sepolia (Chain ID: 5003)
               </p>
             </div>
-            <Badge className="ml-auto bg-green-500/10 text-green-500 border-green-500/20">
-              <CheckCircle className="h-3 w-3 mr-1" />
-              Verified
+            <Badge className={`ml-auto ${isVerified ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"}`}>
+              {isVerified ? (
+                <>
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  KYC Verified
+                </>
+              ) : (
+                <>
+                  <Clock className="h-3 w-3 mr-1" />
+                  Pending KYC
+                </>
+              )}
             </Badge>
           </div>
         </CardContent>

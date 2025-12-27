@@ -130,10 +130,10 @@ export function useYieldAgentStats() {
 
 // Hook to get user's agents
 export function useUserAgents(address: `0x${string}` | undefined) {
-  const { data, isLoading } = useReadContract({
+  const { data: agentCount, isLoading: countLoading } = useReadContract({
     address: CONTRACTS.mantleSepolia.yieldAgent,
     abi: YIELD_AGENT_ABI,
-    functionName: "getAgentsByOwner",
+    functionName: "getUserAgentCount",
     args: address ? [address] : undefined,
     chainId,
     query: {
@@ -141,10 +141,28 @@ export function useUserAgents(address: `0x${string}` | undefined) {
     },
   });
 
+  // Only call useReadContracts if we have an address and agentCount > 0
+  const contractCalls = address && agentCount && Number(agentCount) > 0 
+    ? Array.from({ length: Math.min(Number(agentCount), 10) }, (_, i) => ({
+        address: CONTRACTS.mantleSepolia.yieldAgent,
+        abi: YIELD_AGENT_ABI,
+        functionName: "getUserAgentId",
+        args: [address, i],
+        chainId,
+      }))
+    : undefined;
+
+  const { data: agentIds, isLoading: idsLoading } = useReadContracts({
+    contracts: contractCalls,
+    query: {
+      enabled: !!contractCalls,
+    },
+  });
+
   return {
-    agentIds: data as bigint[] | undefined,
-    agentCount: data?.length ?? 0,
-    isLoading,
+    agentIds: agentIds?.map(result => result.result) as bigint[] | undefined,
+    agentCount: Number(agentCount ?? 0),
+    isLoading: countLoading || idsLoading,
   };
 }
 

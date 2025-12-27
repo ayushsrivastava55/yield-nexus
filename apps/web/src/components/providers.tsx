@@ -4,11 +4,11 @@ import { WagmiProvider } from "wagmi";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import { config } from "@/lib/wagmi";
 import { useState, useEffect, type ReactNode } from "react";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
+  const [wagmiConfig, setWagmiConfig] = useState<any>(null);
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -22,7 +22,13 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    setMounted(true);
+    // Only load wagmi config on client side
+    if (typeof window !== 'undefined') {
+      import("@/lib/wagmi").then((mod) => {
+        setWagmiConfig(mod.config);
+        setMounted(true);
+      });
+    }
   }, []);
 
   return (
@@ -32,8 +38,8 @@ export function Providers({ children }: { children: ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      {mounted ? (
-        <WagmiProvider config={config}>
+      {mounted && wagmiConfig ? (
+        <WagmiProvider config={wagmiConfig}>
           <QueryClientProvider client={queryClient}>
             <RainbowKitProvider
               theme={darkTheme({
