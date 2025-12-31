@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     }));
 
     // Stream the response
-    const result = streamChatWithAgent(agentMessages, userContext);
+    const result = await streamChatWithAgent(agentMessages, userContext);
 
     return result.toTextStreamResponse();
   } catch (error) {

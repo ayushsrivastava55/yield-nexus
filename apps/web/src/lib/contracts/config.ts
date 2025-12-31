@@ -4,35 +4,37 @@ export const CONTRACTS = {
     identityRegistry: "0x9Cc3F9D6Eb74b6b86B6F612941eDC8d25050147F" as `0x${string}`,
     complianceModule: "0x3a7f6A3F8Ef685Aa4f2CA6d83a9995A9f3968f80" as `0x${string}`,
     rwaToken: "0xFcD83652EEAA56Ea270300C26D7Ac80d710b067D" as `0x${string}`,
-    yieldAgent: "0xD7E8c4E890933dff614c01cb5085fAf33B2A7F19" as `0x${string}`,
-    strategyRouter: "0x20e0F970eCFBaEF15002742370b7B53FD66055f0" as `0x${string}`,
-    yieldVault: "0x4150Ac138470d2bA433480A2Fea34f6035e4b770" as `0x${string}`,
+    yieldAgent: "0x5e06853cF65D52f2607CE967918a854c7d480A7f" as `0x${string}`,
+    strategyRouter: "0x3eb0791a5d27167b44713A45De98492e82B4955A" as `0x${string}`,
+    yieldVault: "0xD7044e9D798B5d2F6d18464bd3b8cb21f489E4EA" as `0x${string}`,
   },
 } as const;
 
 // ABIs for contract interactions
 export const IDENTITY_REGISTRY_ABI = [
   {
-    inputs: [{ name: "investor", type: "address" }],
+    inputs: [{ name: "_investor", type: "address" }],
     name: "isVerified",
     outputs: [{ name: "", type: "bool" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [{ name: "investor", type: "address" }],
-    name: "getIdentity",
-    outputs: [
-      { name: "country", type: "uint16" },
-      { name: "kycTier", type: "uint8" },
-      { name: "registrationDate", type: "uint256" },
-      { name: "expirationDate", type: "uint256" },
-    ],
+    inputs: [{ name: "_investor", type: "address" }],
+    name: "identity",
+    outputs: [{ name: "", type: "address" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [{ name: "investor", type: "address" }],
+    inputs: [{ name: "_investor", type: "address" }],
+    name: "investorCountry",
+    outputs: [{ name: "", type: "uint16" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "_investor", type: "address" }],
     name: "getKYCTier",
     outputs: [{ name: "", type: "uint8" }],
     stateMutability: "view",
@@ -88,14 +90,14 @@ export const RWA_TOKEN_ABI = [
 export const YIELD_AGENT_ABI = [
   {
     inputs: [],
-    name: "agentCount",
+    name: "nextAgentId",
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [{ name: "agentId", type: "uint256" }],
-    name: "getAgent",
+    inputs: [{ name: "", type: "uint256" }],
+    name: "agents",
     outputs: [
       { name: "owner", type: "address" },
       { name: "name", type: "string" },
@@ -108,16 +110,22 @@ export const YIELD_AGENT_ABI = [
     type: "function",
   },
   {
-    inputs: [{ name: "owner", type: "address" }],
-    name: "getUserAgentCount",
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ name: "owner", type: "address" }, { name: "index", type: "uint256" }],
-    name: "getUserAgentId",
-    outputs: [{ name: "", type: "uint256" }],
+    inputs: [{ name: "_agentId", type: "uint256" }],
+    name: "getAgentStrategies",
+    outputs: [
+      {
+        components: [
+          { name: "protocol", type: "address" },
+          { name: "inputToken", type: "address" },
+          { name: "outputToken", type: "address" },
+          { name: "targetAllocation", type: "uint256" },
+          { name: "currentAllocation", type: "uint256" },
+          { name: "active", type: "bool" },
+        ],
+        name: "",
+        type: "tuple[]",
+      },
+    ],
     stateMutability: "view",
     type: "function",
   },
@@ -125,17 +133,17 @@ export const YIELD_AGENT_ABI = [
 
 export const COMPLIANCE_MODULE_ABI = [
   {
-    inputs: [{ name: "countryCode", type: "uint16" }],
-    name: "isCountryRestricted",
+    inputs: [{ name: "", type: "uint16" }],
+    name: "restrictedCountries",
     outputs: [{ name: "", type: "bool" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [
-      { name: "from", type: "address" },
-      { name: "to", type: "address" },
-      { name: "amount", type: "uint256" },
+      { name: "_from", type: "address" },
+      { name: "_to", type: "address" },
+      { name: "_amount", type: "uint256" },
     ],
     name: "canTransfer",
     outputs: [{ name: "", type: "bool" }],

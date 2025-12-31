@@ -55,7 +55,7 @@ export default function ComplianceContent() {
   // Handle KYC registration (demo - registers as Retail tier)
   const handleRegisterKYC = () => {
     if (address) {
-      register(address as `0x${string}`, 840, KYCTier.Retail); // 840 = USA country code
+      register(address as `0x${string}`, address as `0x${string}`, 840, KYCTier.Retail); // 840 = USA country code
     }
   };
 
@@ -205,6 +205,9 @@ export default function ComplianceContent() {
                     <h4 className="font-medium">Register Your Identity</h4>
                     <p className="text-sm text-muted-foreground">
                       Complete on-chain KYC verification to access RWA investments
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Note: This action requires the registrar role on the IdentityRegistry.
                     </p>
                   </div>
                   <Button onClick={handleRegisterKYC} disabled={isRegistering}>
@@ -422,6 +425,9 @@ export default function ComplianceContent() {
                   <h4 className="font-medium">Mint RWA Tokens</h4>
                   <p className="text-sm text-muted-foreground">
                     Mint 100 ynRWA tokens to your wallet (testnet only)
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Note: Minting requires the MINTER role on the token contract.
                   </p>
                 </div>
                 <Button onClick={handleMintTokens} disabled={isMinting}>

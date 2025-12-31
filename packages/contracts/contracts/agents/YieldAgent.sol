@@ -8,6 +8,18 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 
+interface IStrategyRouter {
+    function executeStrategy(bytes32 strategyId, uint256 amount, uint256 minAmountOut) external returns (uint256 amountOut);
+    function strategies(bytes32 strategyId) external view returns (
+        uint8 protocolId,
+        address inputToken,
+        address outputToken,
+        uint256 minAmount,
+        uint256 maxSlippage,
+        bool active
+    );
+}
+
 /**
  * @title YieldAgent
  * @dev Autonomous yield optimization agent with Chainlink Automation
@@ -56,6 +68,9 @@ contract YieldAgent is AccessControl, Pausable, ReentrancyGuard, AutomationCompa
     mapping(uint256 => uint256) public agentProfits;
     mapping(uint256 => uint256) public agentGasSpent;
 
+    // Strategy router for real protocol execution
+    IStrategyRouter public strategyRouter;
+
     // Events
     event AgentCreated(uint256 indexed agentId, address indexed owner, string name);
     event AgentUpdated(uint256 indexed agentId);
@@ -66,11 +81,19 @@ contract YieldAgent is AccessControl, Pausable, ReentrancyGuard, AutomationCompa
     event Deposited(uint256 indexed agentId, address indexed token, uint256 amount);
     event Withdrawn(uint256 indexed agentId, address indexed token, uint256 amount, address to);
     event ProtocolApproved(address indexed protocol, bool approved);
+    event StrategyRouterUpdated(address indexed router);
+    event StrategyExecuted(uint256 indexed agentId, bytes32 indexed strategyId, uint256 amountIn, uint256 amountOut);
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(OPERATOR_ROLE, msg.sender);
         _grantRole(STRATEGIST_ROLE, msg.sender);
+    }
+
+    function setStrategyRouter(address _router) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_router != address(0), "Invalid router");
+        strategyRouter = IStrategyRouter(_router);
+        emit StrategyRouterUpdated(_router);
     }
 
     /**
@@ -175,6 +198,44 @@ contract YieldAgent is AccessControl, Pausable, ReentrancyGuard, AutomationCompa
         
         IERC20(_token).safeTransfer(msg.sender, _amount);
         emit Withdrawn(_agentId, _token, _amount, msg.sender);
+    }
+
+    /**
+     * @dev Execute a real strategy via StrategyRouter (owner only)
+     */
+    function executeStrategyForAgent(
+        uint256 _agentId,
+        bytes32 _strategyId,
+        uint256 _amount,
+        uint256 _minAmountOut
+    ) external nonReentrant returns (uint256 amountOut) {
+        require(address(strategyRouter) != address(0), "Router not set");
+        require(agents[_agentId].owner == msg.sender, "Not agent owner");
+        require(agents[_agentId].active, "Agent not active");
+
+        (
+            ,
+            address inputToken,
+            address outputToken,
+            uint256 minAmount,
+            ,
+            bool active
+        ) = strategyRouter.strategies(_strategyId);
+        require(active, "Strategy not active");
+        require(_amount >= minAmount, "Amount below minimum");
+        require(agentBalances[_agentId][inputToken] >= _amount, "Insufficient balance");
+
+        agentBalances[_agentId][inputToken] -= _amount;
+        IERC20(inputToken).safeIncreaseAllowance(address(strategyRouter), _amount);
+
+        amountOut = strategyRouter.executeStrategy(_strategyId, _amount, _minAmountOut);
+
+        agentBalances[_agentId][outputToken] += amountOut;
+        if (amountOut > _amount) {
+            agentProfits[_agentId] += (amountOut - _amount);
+        }
+
+        emit StrategyExecuted(_agentId, _strategyId, _amount, amountOut);
     }
 
     /**

@@ -16,8 +16,15 @@ interface ILBPair {
 }
 
 interface ILBRouter {
+    enum Version {
+        V1,
+        V2,
+        V2_1
+    }
+
     struct Path {
         uint256[] pairBinSteps;
+        Version[] versions;
         address[] tokenPath;
     }
 

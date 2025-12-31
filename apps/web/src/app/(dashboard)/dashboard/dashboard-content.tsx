@@ -71,11 +71,19 @@ const deployedContracts = [
   },
 ];
 
+type ContractStatus = {
+  type: string;
+  address: string;
+  deployed: boolean;
+};
+
 export default function DashboardContent() {
   const { isConnected, address } = useAccount();
   const stats = useDashboardStats(address as `0x${string}` | undefined);
   const [topYields, setTopYields] = useState<YieldData[]>([]);
   const [yieldsLoading, setYieldsLoading] = useState(true);
+  const [contractStatus, setContractStatus] = useState<Record<string, boolean>>({});
+  const [statusLoading, setStatusLoading] = useState(true);
 
   // Fetch real yield data from API
   useEffect(() => {
@@ -93,6 +101,28 @@ export default function DashboardContent() {
       }
     }
     fetchYields();
+  }, []);
+
+  useEffect(() => {
+    async function fetchContractStatus() {
+      setStatusLoading(true);
+      try {
+        const res = await fetch("/api/contracts/status");
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const map: Record<string, boolean> = {};
+          for (const item of data.data as ContractStatus[]) {
+            map[item.type] = item.deployed;
+          }
+          setContractStatus(map);
+        }
+      } catch (error) {
+        console.error("Failed to fetch contract status:", error);
+      } finally {
+        setStatusLoading(false);
+      }
+    }
+    fetchContractStatus();
   }, []);
 
   if (!isConnected) {
@@ -244,6 +274,18 @@ export default function DashboardContent() {
                     </div>
                   </div>
                   <div className="text-right">
+                    <div className="mb-1">
+                      <Badge
+                        variant={contractStatus[contract.type] ? "success" : "secondary"}
+                        className="text-[10px]"
+                      >
+                        {statusLoading
+                          ? "Checking..."
+                          : contractStatus[contract.type]
+                          ? "Deployed"
+                          : "Not Found"}
+                      </Badge>
+                    </div>
                     <a
                       href={`https://sepolia.mantlescan.xyz/address/${contract.address}`}
                       target="_blank"

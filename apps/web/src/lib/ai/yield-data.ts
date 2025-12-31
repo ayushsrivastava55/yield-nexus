@@ -6,12 +6,15 @@ let cachedYields: YieldOpportunity[] | null = null;
 let cacheTimestamp = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-// Fetch real yields with caching
-export async function getRealYields(): Promise<YieldOpportunity[]> {
+// Fetch real yields with caching + source metadata
+export async function getRealYieldsWithSource(): Promise<{
+  yields: YieldOpportunity[];
+  source: "defillama" | "fallback";
+}> {
   const now = Date.now();
   
   if (cachedYields && now - cacheTimestamp < CACHE_DURATION) {
-    return cachedYields;
+    return { yields: cachedYields, source: "defillama" };
   }
 
   try {
@@ -19,14 +22,20 @@ export async function getRealYields(): Promise<YieldOpportunity[]> {
     if (realYields.length > 0) {
       cachedYields = realYields;
       cacheTimestamp = now;
-      return realYields;
+      return { yields: realYields, source: "defillama" };
     }
   } catch (error) {
     console.error("Failed to fetch real yields, using fallback:", error);
   }
 
   // Fallback to static data if API fails
-  return MANTLE_YIELD_OPPORTUNITIES;
+  return { yields: MANTLE_YIELD_OPPORTUNITIES, source: "fallback" };
+}
+
+// Backwards-compatible helper
+export async function getRealYields(): Promise<YieldOpportunity[]> {
+  const result = await getRealYieldsWithSource();
+  return result.yields;
 }
 
 // Fallback static yield data (used when API is unavailable)
@@ -194,6 +203,16 @@ export async function getYieldOpportunitiesAsync(filters?: {
   return filterYields(yields, filters);
 }
 
+export async function getYieldOpportunitiesAsyncWithSource(filters?: {
+  minApy?: number;
+  maxRisk?: "low" | "medium" | "high";
+  protocol?: string;
+  type?: string;
+}): Promise<{ data: YieldOpportunity[]; source: "defillama" | "fallback" }> {
+  const result = await getRealYieldsWithSource();
+  return { data: filterYields(result.yields, filters), source: result.source };
+}
+
 // SYNC: Get yield opportunities (uses fallback static data)
 export function getYieldOpportunities(filters?: {
   minApy?: number;
@@ -208,6 +227,15 @@ export function getYieldOpportunities(filters?: {
 export async function getTopYieldsAsync(count: number = 5): Promise<YieldOpportunity[]> {
   const yields = await getRealYields();
   return yields.sort((a, b) => b.apy - a.apy).slice(0, count);
+}
+
+export async function getTopYieldsAsyncWithSource(count: number = 5): Promise<{
+  data: YieldOpportunity[];
+  source: "defillama" | "fallback";
+}> {
+  const result = await getRealYieldsWithSource();
+  const data = result.yields.sort((a, b) => b.apy - a.apy).slice(0, count);
+  return { data, source: result.source };
 }
 
 // SYNC: Get top yields (uses fallback static data)

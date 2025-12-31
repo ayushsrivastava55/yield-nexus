@@ -118,7 +118,7 @@ export function useYieldAgentStats() {
   const { data, isLoading } = useReadContract({
     address: CONTRACTS.mantleSepolia.yieldAgent,
     abi: YIELD_AGENT_ABI,
-    functionName: "agentCount",
+    functionName: "nextAgentId",
     chainId,
   });
 
@@ -130,24 +130,24 @@ export function useYieldAgentStats() {
 
 // Hook to get user's agents
 export function useUserAgents(address: `0x${string}` | undefined) {
-  const { data: agentCount, isLoading: countLoading } = useReadContract({
+  const { data: nextAgentId, isLoading: countLoading } = useReadContract({
     address: CONTRACTS.mantleSepolia.yieldAgent,
     abi: YIELD_AGENT_ABI,
-    functionName: "getUserAgentCount",
-    args: address ? [address] : undefined,
+    functionName: "nextAgentId",
     chainId,
-    query: {
-      enabled: !!address,
-    },
+    query: { enabled: true },
   });
 
-  // Only call useReadContracts if we have an address and agentCount > 0
-  const contractCalls = address && agentCount && Number(agentCount) > 0 
-    ? Array.from({ length: Math.min(Number(agentCount), 10) }, (_, i) => ({
+  const totalAgents = Number(nextAgentId ?? 0);
+  const maxAgentsToScan = 25;
+  const scanCount = Math.min(totalAgents, maxAgentsToScan);
+
+  const contractCalls = address && scanCount > 0
+    ? Array.from({ length: scanCount }, (_, i) => ({
         address: CONTRACTS.mantleSepolia.yieldAgent,
         abi: YIELD_AGENT_ABI,
-        functionName: "getUserAgentId",
-        args: [address, i],
+        functionName: "agents",
+        args: [BigInt(i)],
         chainId,
       }))
     : undefined;
@@ -159,9 +159,20 @@ export function useUserAgents(address: `0x${string}` | undefined) {
     },
   });
 
+  const ownedAgentIds = agentIds
+    ?.map((result, index) => ({ result: result.result, index }))
+    .filter((entry) => {
+      const agent = entry.result as
+        | [string, string, bigint, bigint, bigint, boolean]
+        | undefined;
+      if (!agent || !address) return false;
+      return agent[0]?.toLowerCase() === address.toLowerCase();
+    })
+    .map((entry) => BigInt(entry.index));
+
   return {
-    agentIds: agentIds?.map(result => result.result) as bigint[] | undefined,
-    agentCount: Number(agentCount ?? 0),
+    agentIds: ownedAgentIds,
+    agentCount: ownedAgentIds?.length ?? 0,
     isLoading: countLoading || idsLoading,
   };
 }
@@ -171,7 +182,7 @@ export function useCountryRestriction(countryCode: number) {
   const { data, isLoading } = useReadContract({
     address: CONTRACTS.mantleSepolia.complianceModule,
     abi: COMPLIANCE_MODULE_ABI,
-    functionName: "isCountryRestricted",
+    functionName: "restrictedCountries",
     args: [countryCode],
     chainId,
   });

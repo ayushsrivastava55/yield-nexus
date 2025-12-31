@@ -1,7 +1,7 @@
 "use client";
 
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { parseEther } from "viem";
+import { parseEther, encodeAbiParameters } from "viem";
 import { CONTRACTS } from "./config";
 
 const chainId = 5003; // Mantle Sepolia
@@ -10,19 +10,20 @@ const chainId = 5003; // Mantle Sepolia
 const IDENTITY_REGISTRY_WRITE_ABI = [
   {
     inputs: [
-      { name: "investor", type: "address" },
-      { name: "country", type: "uint16" },
-      { name: "kycTier", type: "uint8" },
+      { name: "_investor", type: "address" },
+      { name: "_identity", type: "address" },
+      { name: "_country", type: "uint16" },
+      { name: "_tier", type: "uint8" },
     ],
-    name: "registerIdentity",
+    name: "registerIdentityWithTier",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
     inputs: [
-      { name: "investor", type: "address" },
-      { name: "newTier", type: "uint8" },
+      { name: "_investor", type: "address" },
+      { name: "_tier", type: "uint8" },
     ],
     name: "updateKYCTier",
     outputs: [],
@@ -59,7 +60,7 @@ const YIELD_AGENT_WRITE_ABI = [
     inputs: [
       { name: "_name", type: "string" },
       { name: "_minRebalanceInterval", type: "uint256" },
-      { name: "_maxSlippage", type: "uint256" }
+      { name: "_maxSlippage", type: "uint256" },
     ],
     name: "createAgent",
     outputs: [{ name: "agentId", type: "uint256" }],
@@ -67,21 +68,21 @@ const YIELD_AGENT_WRITE_ABI = [
     type: "function",
   },
   {
-    inputs: [{ name: "agentId", type: "uint256" }],
-    name: "pauseAgent",
+    inputs: [{ name: "_agentId", type: "uint256" }],
+    name: "deactivateAgent",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [{ name: "agentId", type: "uint256" }],
-    name: "resumeAgent",
+    inputs: [{ name: "_agentId", type: "uint256" }],
+    name: "manualRebalance",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [{ name: "agentId", type: "uint256" }],
+    inputs: [{ name: "performData", type: "bytes" }],
     name: "performUpkeep",
     outputs: [],
     stateMutability: "nonpayable",
@@ -97,12 +98,17 @@ export function useRegisterIdentity() {
     hash,
   });
 
-  const register = (investor: `0x${string}`, country: number, kycTier: number) => {
+  const register = (
+    investor: `0x${string}`,
+    identity: `0x${string}`,
+    country: number,
+    kycTier: number
+  ) => {
     writeContract({
       address: CONTRACTS.mantleSepolia.identityRegistry,
       abi: IDENTITY_REGISTRY_WRITE_ABI,
-      functionName: "registerIdentity",
-      args: [investor, country, kycTier],
+      functionName: "registerIdentityWithTier",
+      args: [investor, identity, country, kycTier],
       chainId,
     });
   };
@@ -186,7 +192,7 @@ export function useCreateAgent() {
       address: CONTRACTS.mantleSepolia.yieldAgent,
       abi: YIELD_AGENT_WRITE_ABI,
       functionName: "createAgent",
-      args: [name, minRebalanceInterval, maxSlippage],
+      args: [name, BigInt(minRebalanceInterval), BigInt(maxSlippage)],
       chainId,
     });
   };
@@ -209,39 +215,40 @@ export function useAgentControl() {
     hash,
   });
 
-  const pauseAgent = (agentId: bigint) => {
+  const deactivateAgent = (agentId: bigint) => {
     writeContract({
       address: CONTRACTS.mantleSepolia.yieldAgent,
       abi: YIELD_AGENT_WRITE_ABI,
-      functionName: "pauseAgent",
+      functionName: "deactivateAgent",
       args: [agentId],
       chainId,
     });
   };
 
-  const resumeAgent = (agentId: bigint) => {
+  const manualRebalance = (agentId: bigint) => {
     writeContract({
       address: CONTRACTS.mantleSepolia.yieldAgent,
       abi: YIELD_AGENT_WRITE_ABI,
-      functionName: "resumeAgent",
+      functionName: "manualRebalance",
       args: [agentId],
       chainId,
     });
   };
 
   const triggerRebalance = (agentId: bigint) => {
+    const performData = encodeAbiParameters([{ type: "uint256" }], [agentId]);
     writeContract({
       address: CONTRACTS.mantleSepolia.yieldAgent,
       abi: YIELD_AGENT_WRITE_ABI,
       functionName: "performUpkeep",
-      args: [agentId],
+      args: [performData],
       chainId,
     });
   };
 
   return {
-    pauseAgent,
-    resumeAgent,
+    deactivateAgent,
+    manualRebalance,
     triggerRebalance,
     hash,
     isPending,

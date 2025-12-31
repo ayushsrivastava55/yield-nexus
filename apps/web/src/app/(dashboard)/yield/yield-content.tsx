@@ -56,6 +56,7 @@ export default function YieldContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [dataSource, setDataSource] = useState<string>("unknown");
 
   // Fetch real yield data from DeFiLlama API
   const fetchYields = async () => {
@@ -67,6 +68,7 @@ export default function YieldContent() {
       if (data.success && data.data) {
         setYieldOpportunities(data.data);
         setLastUpdated(new Date());
+        setDataSource(data.meta?.source || "unknown");
       } else {
         setError("Failed to fetch yield data");
       }
@@ -126,7 +128,7 @@ export default function YieldContent() {
           </p>
           {lastUpdated && (
             <p className="text-xs text-muted-foreground mt-1">
-              Last updated: {lastUpdated.toLocaleTimeString()}
+              Last updated: {lastUpdated.toLocaleTimeString()} · Source: {dataSource}
             </p>
           )}
         </div>

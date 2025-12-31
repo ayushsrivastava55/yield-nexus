@@ -10,7 +10,6 @@ async function main() {
     identityRegistry: "0x9Cc3F9D6Eb74b6b86B6F612941eDC8d25050147F",
     complianceModule: "0x3a7f6A3F8Ef685Aa4f2CA6d83a9995A9f3968f80",
     rwaToken: "0xFcD83652EEAA56Ea270300C26D7Ac80d710b067D",
-    yieldAgent: "0xD7E8c4E890933dff614c01cb5085fAf33B2A7F19",
   };
 
   // 1. Deploy Strategy Router
@@ -34,16 +33,28 @@ async function main() {
   const yieldVaultAddress = await yieldVault.getAddress();
   console.log("YieldVault deployed to:", yieldVaultAddress);
 
-  // 3. Setup roles and connections
-  console.log("\n3. Setting up roles and connections...");
+  // 3. Deploy a new YieldAgent for router execution
+  console.log("\n3. Deploying YieldAgent...");
+  const YieldAgentFactory = await ethers.getContractFactory("YieldAgent");
+  const yieldAgent = await YieldAgentFactory.deploy();
+  await yieldAgent.waitForDeployment();
+  const yieldAgentAddress = await yieldAgent.getAddress();
+  console.log("YieldAgent deployed to:", yieldAgentAddress);
+
+  // 4. Setup roles and connections
+  console.log("\n4. Setting up roles and connections...");
   
   // Set strategy router in vault
   await yieldVault.setStrategyRouter(strategyRouterAddress);
   console.log("Set StrategyRouter in YieldVault");
 
+  // Set strategy router in YieldAgent for real execution path
+  await yieldAgent.setStrategyRouter(strategyRouterAddress);
+  console.log("Set StrategyRouter in YieldAgent");
+
   // Approve protocols in StrategyRouter
   // Protocol IDs: 1=Merchant Moe, 2=INIT Capital, 3=Renzo, 4=mETH
-  const MERCHANT_MOE_ROUTER = "0xeaEE7EE68874218c3558b40063c42B82D3E7232a";
+  const MERCHANT_MOE_ROUTER = "0x013e1383ef15ab060e510bc3151d9a7bfb6f6722";
   const INIT_CORE = "0x972BcB0284cca0152527c4f70f8F689852bCAFc5";
   
   await strategyRouter.setProtocolAdapter(1, MERCHANT_MOE_ROUTER);
@@ -51,6 +62,11 @@ async function main() {
   
   await strategyRouter.setProtocolAdapter(2, INIT_CORE);
   console.log("Set INIT Capital adapter");
+
+  // Grant executor role to YieldAgent so it can run strategies
+  const EXECUTOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("EXECUTOR_ROLE"));
+  await strategyRouter.grantRole(EXECUTOR_ROLE, yieldAgentAddress);
+  console.log("Granted EXECUTOR_ROLE to YieldAgent");
 
   // Approve common tokens
   const TOKENS = {
@@ -80,12 +96,12 @@ async function main() {
   console.log("NEW Contract Addresses:");
   console.log(`  StrategyRouter:    ${strategyRouterAddress}`);
   console.log(`  YieldVault:        ${yieldVaultAddress}`);
+  console.log(`  YieldAgent:        ${yieldAgentAddress}`);
   console.log("");
   console.log("EXISTING Contract Addresses:");
   console.log(`  IdentityRegistry:  ${EXISTING_CONTRACTS.identityRegistry}`);
   console.log(`  ComplianceModule:  ${EXISTING_CONTRACTS.complianceModule}`);
   console.log(`  RWAToken:          ${EXISTING_CONTRACTS.rwaToken}`);
-  console.log(`  YieldAgent:        ${EXISTING_CONTRACTS.yieldAgent}`);
   console.log("");
   console.log("Update your frontend config with these addresses!");
   console.log("=".repeat(60));

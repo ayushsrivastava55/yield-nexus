@@ -146,7 +146,7 @@ bun run deploy
 - [x] ERC-3643 compliant RWA token
 - [x] Identity Registry with KYC tiers
 - [x] Compliance Module with jurisdiction rules
-- [x] Yield Agent with Chainlink Automation
+- [x] Yield Agent with Chainlink Automation (on-chain scheduling + tracking)
 - [x] Next.js dashboard UI
 - [x] Wallet connection (RainbowKit)
 - [x] Mantle network integration
@@ -158,7 +158,7 @@ bun run deploy
 
 ### 🔄 In Progress
 
-- [ ] Real protocol integrations (Merchant Moe, INIT Capital)
+- [ ] Full protocol integrations (Merchant Moe, INIT Capital, etc.)
 - [ ] On-chain agent deployment
 - [ ] Live yield data feeds
 
@@ -176,6 +176,10 @@ bun run deploy
 - Pausable contracts for emergencies
 - Token recovery mechanism for lost wallets
 - Multi-jurisdiction compliance rules
+
+## 🔧 Execution Notes
+- StrategyRouter supports real Merchant Moe swaps once a path is configured via `setStrategyPath` (including router versions array).
+- Other protocol executions are simulated until adapters are implemented.
 
 ## 📚 Documentation
 

@@ -11,8 +11,8 @@ import {
   Wallet,
   Bot,
   Plus,
-  Play,
   Pause,
+  Play,
   Settings,
   TrendingUp,
   Shield,
@@ -74,7 +74,7 @@ interface AgentMetrics {
   lastRebalance: string;
   strategies: { protocol: string; allocation: number; apy: number }[];
   performance: { day: number; week: number; month: number };
-  status: "active" | "paused" | "inactive";
+  status: "active" | "inactive";
 }
 
 export default function AgentsContent() {
@@ -114,7 +114,7 @@ export default function AgentsContent() {
 
   // Contract write hooks
   const { createAgent, isPending: isCreating, isSuccess: createSuccess, hash: createHash } = useCreateAgent();
-  const { pauseAgent, resumeAgent, isPending: isControlling } = useAgentControl();
+  const { deactivateAgent } = useAgentControl();
 
   const handleCreateAgent = (strategyId: string) => {
     // Get the strategy template details
@@ -400,8 +400,14 @@ export default function AgentsContent() {
                       <Settings className="h-3 w-3 mr-1" />
                       Configure
                     </Button>
-                    <Button size="sm" variant="outline">
-                      {agent.status === "active" ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={agent.status !== "active"}
+                      onClick={() => deactivateAgent(BigInt(agent.agentId))}
+                      title="Deactivate agent (owner only)"
+                    >
+                      <Pause className="h-3 w-3" />
                     </Button>
                   </div>
                 </CardContent>

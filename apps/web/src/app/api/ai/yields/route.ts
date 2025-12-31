@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getYieldOpportunitiesAsync, getTopYieldsAsync, getRealYields } from "@/lib/ai/yield-data";
+import { getYieldOpportunitiesAsyncWithSource, getTopYieldsAsyncWithSource } from "@/lib/ai/yield-data";
 
 export async function GET(req: Request) {
   try {
@@ -14,20 +14,22 @@ export async function GET(req: Request) {
     // If requesting top yields
     if (top) {
       const count = parseInt(top) || 5;
-      const topYields = await getTopYieldsAsync(count);
+      const topYields = await getTopYieldsAsyncWithSource(count);
       return NextResponse.json({
         success: true,
-        data: topYields,
+        data: topYields.data,
         meta: {
-          count: topYields.length,
-          avgApy: topYields.reduce((sum, o) => sum + o.apy, 0) / topYields.length,
-          source: "defillama", // Indicate real data source
+          count: topYields.data.length,
+          avgApy: topYields.data.length > 0
+            ? topYields.data.reduce((sum, o) => sum + o.apy, 0) / topYields.data.length
+            : 0,
+          source: topYields.source,
         },
       });
     }
 
     // Filter yields based on params - using real DeFiLlama data
-    const opportunities = await getYieldOpportunitiesAsync({
+    const opportunities = await getYieldOpportunitiesAsyncWithSource({
       minApy: minApy ? parseFloat(minApy) : undefined,
       maxRisk: maxRisk || undefined,
       protocol: protocol || undefined,
@@ -36,14 +38,14 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       success: true,
-      data: opportunities,
+      data: opportunities.data,
       meta: {
-        count: opportunities.length,
-        totalTvl: opportunities.reduce((sum, o) => sum + o.tvl, 0),
-        avgApy: opportunities.length > 0
-          ? opportunities.reduce((sum, o) => sum + o.apy, 0) / opportunities.length
+        count: opportunities.data.length,
+        totalTvl: opportunities.data.reduce((sum, o) => sum + o.tvl, 0),
+        avgApy: opportunities.data.length > 0
+          ? opportunities.data.reduce((sum, o) => sum + o.apy, 0) / opportunities.data.length
           : 0,
-        source: "defillama", // Real data from DeFiLlama API
+        source: opportunities.source,
       },
     });
   } catch (error) {

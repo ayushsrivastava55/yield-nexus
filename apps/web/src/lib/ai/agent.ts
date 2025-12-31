@@ -1,6 +1,6 @@
 import { openai } from "@ai-sdk/openai";
 import { generateText, streamText } from "ai";
-import { getYieldOpportunities, getTopYields, getProtocolStats } from "./yield-data";
+import { getYieldOpportunitiesAsync, getRealYieldsWithSource } from "./yield-data";
 
 // Message type for the agent
 export type YieldAgentMessage = {
@@ -42,26 +42,50 @@ const YIELD_AGENT_SYSTEM_PROMPT = `You are Yield Nexus AI, an autonomous yield o
 - Present allocations in clear, actionable formats
 - Always explain the reasoning behind recommendations`;
 
+function buildProtocolStats(yields: { protocol: string; tvl: number; apy: number }[]) {
+  const protocols = new Map<string, { tvl: number; totalApy: number; count: number }>();
+  for (const y of yields) {
+    const existing = protocols.get(y.protocol) || { tvl: 0, totalApy: 0, count: 0 };
+    protocols.set(y.protocol, {
+      tvl: existing.tvl + y.tvl,
+      totalApy: existing.totalApy + y.apy,
+      count: existing.count + 1,
+    });
+  }
+  return Array.from(protocols.entries()).map(([name, stats]) => ({
+    name,
+    tvl: stats.tvl,
+    avgApy: stats.count > 0 ? stats.totalApy / stats.count : 0,
+  }));
+}
+
 // Build context with current yield data
-function buildYieldContext(): string {
-  const topYields = getTopYields(5);
-  const stats = getProtocolStats();
-  
+async function buildYieldContext(): Promise<string> {
+  const { yields, source } = await getRealYieldsWithSource();
+  const topYields = [...yields].sort((a, b) => b.apy - a.apy).slice(0, 5);
+  const stats = buildProtocolStats(yields);
+
   const yieldsInfo = topYields
     .map((y) => `- ${y.protocol} ${y.pair}: ${y.apy}% APY (${y.risk} risk, $${(y.tvl / 1e6).toFixed(0)}M TVL)`)
     .join("\n");
-  
+
   const protocolInfo = stats
     .map((p) => `- ${p.name}: $${(p.tvl / 1e6).toFixed(0)}M TVL, ${p.avgApy.toFixed(1)}% avg APY`)
     .join("\n");
 
+  const sourceNote =
+    source === "defillama"
+      ? "Data source: DeFiLlama (live)."
+      : "Data source: static fallback (DeFiLlama unavailable).";
+
   return `\n\n## Current Market Data (Live):
+${sourceNote}
 
 ### Top Yield Opportunities:
-${yieldsInfo}
+${yieldsInfo || "- No yield data available"}
 
 ### Protocol Overview:
-${protocolInfo}`;
+${protocolInfo.length > 0 ? protocolInfo : "- No protocol stats available"}`;
 }
 
 // Non-streaming chat completion
@@ -77,7 +101,7 @@ export async function chatWithAgent(
     ? `\n\nUser Context: KYC Tier: ${userContext.kycTier || "unknown"}, Country: ${userContext.country || "unknown"}, Portfolio Value: $${userContext.portfolioValue?.toLocaleString() || "unknown"}`
     : "";
 
-  const yieldContext = buildYieldContext();
+  const yieldContext = await buildYieldContext();
 
   const result = await generateText({
     model: openai("gpt-4o"),
@@ -92,7 +116,7 @@ export async function chatWithAgent(
 }
 
 // Streaming chat completion
-export function streamChatWithAgent(
+export async function streamChatWithAgent(
   messages: YieldAgentMessage[],
   userContext?: {
     kycTier?: "retail" | "accredited" | "institutional";
@@ -104,7 +128,7 @@ export function streamChatWithAgent(
     ? `\n\nUser Context: KYC Tier: ${userContext.kycTier || "unknown"}, Country: ${userContext.country || "unknown"}, Portfolio Value: $${userContext.portfolioValue?.toLocaleString() || "unknown"}`
     : "";
 
-  const yieldContext = buildYieldContext();
+  const yieldContext = await buildYieldContext();
 
   return streamText({
     model: openai("gpt-4o"),
@@ -124,8 +148,8 @@ export async function analyzeYields(
     aggressive: "high" as const,
   };
 
-  const opportunities = getYieldOpportunities({ maxRisk: riskFilter[riskTolerance] });
-  const yieldContext = buildYieldContext();
+  const opportunities = await getYieldOpportunitiesAsync({ maxRisk: riskFilter[riskTolerance] });
+  const yieldContext = await buildYieldContext();
 
   const result = await generateText({
     model: openai("gpt-4o"),
@@ -154,7 +178,7 @@ export async function generateStrategy(
   riskTolerance: "conservative" | "moderate" | "aggressive",
   targetYield?: number
 ) {
-  const yieldContext = buildYieldContext();
+  const yieldContext = await buildYieldContext();
 
   const result = await generateText({
     model: openai("gpt-4o"),
