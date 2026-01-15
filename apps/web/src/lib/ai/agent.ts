@@ -1,6 +1,11 @@
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, streamText } from "ai";
 import { getYieldOpportunitiesAsync, getRealYieldsWithSource } from "./yield-data";
+
+// Create OpenAI client with explicit API key for edge runtime compatibility
+const openai = createOpenAI({
+  apiKey: (process.env.OPENAI_API_KEY || "").trim(),
+});
 
 // Message type for the agent
 export type YieldAgentMessage = {
@@ -128,7 +133,21 @@ export async function streamChatWithAgent(
     ? `\n\nUser Context: KYC Tier: ${userContext.kycTier || "unknown"}, Country: ${userContext.country || "unknown"}, Portfolio Value: $${userContext.portfolioValue?.toLocaleString() || "unknown"}`
     : "";
 
-  const yieldContext = await buildYieldContext();
+  // Try to build yield context, but don't block if it fails/takes too long
+  let yieldContext = "";
+  try {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout")), 3000)
+    );
+
+    yieldContext = await Promise.race([
+      buildYieldContext(),
+      timeoutPromise,
+    ]) as string;
+  } catch (error) {
+    console.warn("Failed to fetch yield context, proceeding without it:", error);
+    yieldContext = "\n\n## Current Market Data:\nUnable to fetch live data at this time.";
+  }
 
   return streamText({
     model: openai("gpt-4o"),

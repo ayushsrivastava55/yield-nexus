@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "@zkmelabs/widget": "0.3.6",
-    "sonner": "2.0.7"
+    "sonner": "2.0.7",
+    "vercel": "50.4.1"
   }
 }
