@@ -9,7 +9,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // Fetch real yields with caching + source metadata
 export async function getRealYieldsWithSource(): Promise<{
   yields: YieldOpportunity[];
-  source: "defillama" | "fallback";
+  source: "defillama" | "unavailable";
 }> {
   const now = Date.now();
   
@@ -28,8 +28,8 @@ export async function getRealYieldsWithSource(): Promise<{
     console.error("Failed to fetch real yields, using fallback:", error);
   }
 
-  // Fallback to static data if API fails
-  return { yields: MANTLE_YIELD_OPPORTUNITIES, source: "fallback" };
+  // No fallback: return empty when API is unavailable
+  return { yields: [], source: "unavailable" };
 }
 
 // Backwards-compatible helper
@@ -39,123 +39,7 @@ export async function getRealYields(): Promise<YieldOpportunity[]> {
 }
 
 // Fallback static yield data (used when API is unavailable)
-export const MANTLE_YIELD_OPPORTUNITIES: YieldOpportunity[] = [
-  // Merchant Moe DEX
-  {
-    id: "mm-meth-usdt",
-    protocol: "Merchant Moe",
-    pair: "mETH/USDT",
-    apy: 12.4,
-    tvl: 45_000_000,
-    risk: "medium",
-    chain: "mantle",
-    type: "liquidity",
-  },
-  {
-    id: "mm-wmnt-usdc",
-    protocol: "Merchant Moe",
-    pair: "WMNT/USDC",
-    apy: 8.7,
-    tvl: 32_000_000,
-    risk: "medium",
-    chain: "mantle",
-    type: "liquidity",
-  },
-  {
-    id: "mm-moe-wmnt",
-    protocol: "Merchant Moe",
-    pair: "MOE/WMNT",
-    apy: 24.5,
-    tvl: 12_000_000,
-    risk: "high",
-    chain: "mantle",
-    type: "liquidity",
-  },
-  // INIT Capital
-  {
-    id: "init-usdy-loop",
-    protocol: "INIT Capital",
-    pair: "USDY Loop",
-    apy: 9.8,
-    tvl: 32_000_000,
-    risk: "low",
-    chain: "mantle",
-    type: "lending",
-  },
-  {
-    id: "init-meth-lending",
-    protocol: "INIT Capital",
-    pair: "mETH Lending",
-    apy: 4.2,
-    tvl: 85_000_000,
-    risk: "low",
-    chain: "mantle",
-    type: "lending",
-  },
-  {
-    id: "init-usdc-lending",
-    protocol: "INIT Capital",
-    pair: "USDC Lending",
-    apy: 6.1,
-    tvl: 120_000_000,
-    risk: "low",
-    chain: "mantle",
-    type: "lending",
-  },
-  // mETH Protocol
-  {
-    id: "meth-staking",
-    protocol: "mETH Protocol",
-    pair: "ETH Staking",
-    apy: 5.2,
-    tvl: 1_200_000_000,
-    risk: "low",
-    chain: "mantle",
-    type: "staking",
-  },
-  {
-    id: "cmeth-restaking",
-    protocol: "mETH Protocol",
-    pair: "cmETH Restaking",
-    apy: 8.1,
-    tvl: 450_000_000,
-    risk: "medium",
-    chain: "mantle",
-    type: "restaking",
-  },
-  // Lendle
-  {
-    id: "lendle-usdt",
-    protocol: "Lendle",
-    pair: "USDT Supply",
-    apy: 5.8,
-    tvl: 65_000_000,
-    risk: "low",
-    chain: "mantle",
-    type: "lending",
-  },
-  {
-    id: "lendle-wmnt",
-    protocol: "Lendle",
-    pair: "WMNT Supply",
-    apy: 7.3,
-    tvl: 42_000_000,
-    risk: "medium",
-    chain: "mantle",
-    type: "lending",
-  },
-  // Agni Finance
-  {
-    id: "agni-usdc-usdt",
-    protocol: "Agni Finance",
-    pair: "USDC/USDT",
-    apy: 3.2,
-    tvl: 28_000_000,
-    risk: "low",
-    chain: "mantle",
-    type: "liquidity",
-  },
-];
+export const MANTLE_YIELD_OPPORTUNITIES: YieldOpportunity[] = [];
 
 // Filter helper function
 function filterYields(
@@ -208,7 +92,7 @@ export async function getYieldOpportunitiesAsyncWithSource(filters?: {
   maxRisk?: "low" | "medium" | "high";
   protocol?: string;
   type?: string;
-}): Promise<{ data: YieldOpportunity[]; source: "defillama" | "fallback" }> {
+}): Promise<{ data: YieldOpportunity[]; source: "defillama" | "unavailable" }> {
   const result = await getRealYieldsWithSource();
   return { data: filterYields(result.yields, filters), source: result.source };
 }
@@ -220,7 +104,7 @@ export function getYieldOpportunities(filters?: {
   protocol?: string;
   type?: string;
 }): YieldOpportunity[] {
-  return filterYields(MANTLE_YIELD_OPPORTUNITIES, filters);
+  return [];
 }
 
 // ASYNC: Get top yields from real data
@@ -231,7 +115,7 @@ export async function getTopYieldsAsync(count: number = 5): Promise<YieldOpportu
 
 export async function getTopYieldsAsyncWithSource(count: number = 5): Promise<{
   data: YieldOpportunity[];
-  source: "defillama" | "fallback";
+  source: "defillama" | "unavailable";
 }> {
   const result = await getRealYieldsWithSource();
   const data = result.yields.sort((a, b) => b.apy - a.apy).slice(0, count);
@@ -240,9 +124,7 @@ export async function getTopYieldsAsyncWithSource(count: number = 5): Promise<{
 
 // SYNC: Get top yields (uses fallback static data)
 export function getTopYields(count: number = 5): YieldOpportunity[] {
-  return [...MANTLE_YIELD_OPPORTUNITIES]
-    .sort((a, b) => b.apy - a.apy)
-    .slice(0, count);
+  return [];
 }
 
 export function calculateRiskAdjustedReturn(opportunity: YieldOpportunity): number {
@@ -250,10 +132,11 @@ export function calculateRiskAdjustedReturn(opportunity: YieldOpportunity): numb
   return opportunity.apy * riskMultiplier[opportunity.risk];
 }
 
-export function getProtocolStats() {
+export async function getProtocolStats() {
+  const yields = await getRealYields();
   const protocols = new Map<string, { tvl: number; avgApy: number; count: number }>();
 
-  for (const opp of MANTLE_YIELD_OPPORTUNITIES) {
+  for (const opp of yields) {
     const existing = protocols.get(opp.protocol) || { tvl: 0, avgApy: 0, count: 0 };
     protocols.set(opp.protocol, {
       tvl: existing.tvl + opp.tvl,

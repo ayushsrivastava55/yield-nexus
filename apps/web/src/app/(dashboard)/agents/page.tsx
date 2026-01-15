@@ -3,7 +3,7 @@
 import dynamicImport from "next/dynamic";
 import { Loader2 } from "lucide-react";
 
-const AgentsContent = dynamicImport(() => import("./agents-content"), {
+const NewAgentsContent = dynamicImport(() => import("./new-agents-content"), {
   ssr: false,
   loading: () => (
     <div className="flex min-h-[80vh] flex-col items-center justify-center">
@@ -13,5 +13,5 @@ const AgentsContent = dynamicImport(() => import("./agents-content"), {
 });
 
 export default function AgentsPage() {
-  return <AgentsContent />;
+  return <NewAgentsContent />;
 }

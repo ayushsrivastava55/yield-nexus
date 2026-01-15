@@ -61,6 +61,21 @@ cp packages/contracts/.env.example packages/contracts/.env
 ```env
 NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_project_id
 NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_STRATEGY_ROUTER_ADDRESS=your_router_address
+NEXT_PUBLIC_YIELD_VAULT_ADDRESS=your_vault_address
+NEXT_PUBLIC_MERCHANT_MOE_ROUTER_ADDRESS=your_merchant_moe_router
+NEXT_PUBLIC_LENDLE_LENDING_POOL_ADDRESS=your_lendle_pool
+
+# Manual KYC review (server-side only)
+ADMIN_ACTION_SECRET=your_admin_review_secret
+KYC_DOCS_BUCKET=kyc-documents
+
+# Supabase (server-side only)
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# Registrar wallet for on-chain KYC registration
+KYC_REGISTRAR_PRIVATE_KEY=0x...
 ```
 
 **Contracts (`packages/contracts/.env`):**
@@ -106,6 +121,10 @@ cp .env.example .env
 # Edit .env with your private key
 bun run deploy
 ```
+
+### Protocol Adapter Setup
+- Set `MERCHANT_MOE_ROUTER` and `LENDLE_LENDING_POOL` in `packages/contracts/.env`.
+- Provide `APPROVED_TOKENS` as a comma-separated list of token addresses for StrategyRouter.
 
 ## 🌐 Network Configuration
 
@@ -155,6 +174,8 @@ bun run deploy
 - [x] Agent management dashboard
 - [x] Compliance/KYC status page
 - [x] Streaming AI chat API
+- [x] Manual issuer KYC review + on-chain registration
+- [x] Supabase audit trail
 
 ### 🔄 In Progress
 
@@ -179,7 +200,32 @@ bun run deploy
 
 ## 🔧 Execution Notes
 - StrategyRouter supports real Merchant Moe swaps once a path is configured via `setStrategyPath` (including router versions array).
-- Other protocol executions are simulated until adapters are implemented.
+- Lendle deposits are executed via the lending pool adapter when configured.
+
+## ✅ KYC Setup (Required for real compliance flow)
+
+1. Create a Supabase project and run the SQL in `supabase/schema.sql`.
+2. Create a Supabase Storage bucket for KYC documents (name must match `KYC_DOCS_BUCKET`, and set it to public or use signed URLs).
+3. Ensure the registrar wallet has the `REGISTRAR_ROLE` on `IdentityRegistry`.
+4. Set `ADMIN_ACTION_SECRET` for manual approvals.
+5. Fill the required environment variables in `apps/web/.env.local`.
+
+### Manual Review API (Admin)
+Approve:
+```bash
+curl -X POST http://localhost:3000/api/kyc/review \\
+  -H \"Content-Type: application/json\" \\
+  -H \"x-admin-secret: $ADMIN_ACTION_SECRET\" \\
+  -d '{\"walletAddress\":\"0x...\",\"decision\":\"approve\",\"reason\":\"verified\"}'
+```
+
+Reject:
+```bash
+curl -X POST http://localhost:3000/api/kyc/review \\
+  -H \"Content-Type: application/json\" \\
+  -H \"x-admin-secret: $ADMIN_ACTION_SECRET\" \\
+  -d '{\"walletAddress\":\"0x...\",\"decision\":\"reject\",\"reason\":\"insufficient docs\"}'
+```
 
 ## 📚 Documentation
 

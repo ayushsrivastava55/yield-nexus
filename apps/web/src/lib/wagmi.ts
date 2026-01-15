@@ -1,8 +1,14 @@
 "use client";
 
-import { http, createStorage, cookieStorage } from "wagmi";
+import { http, createStorage, cookieStorage, createConfig } from "wagmi";
 import { mainnet } from "wagmi/chains";
-import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { connectorsForWallets } from "@rainbow-me/rainbowkit";
+import {
+  metaMaskWallet,
+  coinbaseWallet,
+  walletConnectWallet,
+  rainbowWallet,
+} from "@rainbow-me/rainbowkit/wallets";
 
 // Custom Mantle chain definitions
 export const mantleMainnet = {
@@ -50,13 +56,33 @@ export const mantleSepolia = {
 } as const;
 
 // WalletConnect projectId - Get yours at https://cloud.walletconnect.com/
-// Using a placeholder for development - replace with your own for production
 const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "demo";
 
-export const config = getDefaultConfig({
-  appName: "Yield Nexus",
-  projectId,
-  chains: [mantleMainnet, mantleSepolia, mainnet],
+// Define chains
+const chains = [mantleSepolia, mantleMainnet, mainnet] as const;
+
+// Configure wallets - MetaMask FIRST to prioritize it
+const connectors = connectorsForWallets(
+  [
+    {
+      groupName: "Recommended",
+      wallets: [
+        metaMaskWallet,
+        coinbaseWallet,
+        rainbowWallet,
+        walletConnectWallet,
+      ],
+    },
+  ],
+  {
+    appName: "Meridian",
+    projectId,
+  }
+);
+
+export const config = createConfig({
+  connectors,
+  chains,
   ssr: false,
   storage: createStorage({
     storage: cookieStorage,

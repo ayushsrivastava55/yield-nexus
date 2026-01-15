@@ -137,38 +137,46 @@ export async function streamChatWithAgent(
   });
 }
 
-// Quick yield analysis
+// Quick yield analysis with portfolio optimization
 export async function analyzeYields(
   riskTolerance: "conservative" | "moderate" | "aggressive",
   investmentAmount: number
 ) {
-  const riskFilter = {
-    conservative: "low" as const,
-    moderate: "medium" as const,
-    aggressive: "high" as const,
-  };
-
-  const opportunities = await getYieldOpportunitiesAsync({ maxRisk: riskFilter[riskTolerance] });
-  const yieldContext = await buildYieldContext();
-
-  const result = await generateText({
-    model: openai("gpt-4o"),
-    system: YIELD_AGENT_SYSTEM_PROMPT + yieldContext,
-    prompt: `Analyze yield opportunities for a ${riskTolerance} investor with $${investmentAmount.toLocaleString()} to invest. 
-    
-Available opportunities matching risk profile:
-${opportunities.map((o) => `- ${o.protocol} ${o.pair}: ${o.apy}% APY`).join("\n")}
-
-Provide:
-1. Top 3 recommended allocations with percentages
-2. Expected portfolio yield
-3. Key risks to consider
-4. Suggested rebalancing frequency`,
-  });
+  const { optimizePortfolio, generatePortfolioExplanation } = await import("./portfolio-optimizer");
+  
+  const opportunities = await getYieldOpportunitiesAsync({});
+  
+  // Use the sophisticated portfolio optimizer
+  const optimizedPortfolio = optimizePortfolio(opportunities, investmentAmount, riskTolerance);
+  
+  // Generate detailed explanation
+  const analysis = generatePortfolioExplanation(optimizedPortfolio);
 
   return {
-    analysis: result.text,
-    opportunities,
+    analysis,
+    opportunities: optimizedPortfolio.allocations.map(a => a.opportunity),
+    portfolio: {
+      allocations: optimizedPortfolio.allocations.map(a => ({
+        protocol: a.opportunity.protocol,
+        pair: a.opportunity.pair,
+        allocation: a.allocation,
+        amount: a.amount,
+        apy: a.opportunity.apy,
+        expectedReturn: a.expectedAnnualReturn,
+        sharpeRatio: a.sharpeRatio,
+        riskScore: a.riskScore,
+      })),
+      metrics: {
+        totalAPY: optimizedPortfolio.totalExpectedAPY,
+        totalReturn: optimizedPortfolio.totalExpectedAnnualReturn,
+        sharpeRatio: optimizedPortfolio.portfolioSharpeRatio,
+        riskScore: optimizedPortfolio.portfolioRiskScore,
+        diversification: optimizedPortfolio.diversificationScore,
+      },
+      recommendations: optimizedPortfolio.recommendations,
+      rebalancingFrequency: optimizedPortfolio.rebalancingFrequency,
+      gasEstimate: optimizedPortfolio.gasEstimate,
+    },
   };
 }
 

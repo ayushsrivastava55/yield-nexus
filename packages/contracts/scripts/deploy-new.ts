@@ -53,15 +53,19 @@ async function main() {
   console.log("Set StrategyRouter in YieldAgent");
 
   // Approve protocols in StrategyRouter
-  // Protocol IDs: 1=Merchant Moe, 2=INIT Capital, 3=Renzo, 4=mETH
-  const MERCHANT_MOE_ROUTER = "0x013e1383ef15ab060e510bc3151d9a7bfb6f6722";
-  const INIT_CORE = "0x972BcB0284cca0152527c4f70f8F689852bCAFc5";
-  
-  await strategyRouter.setProtocolAdapter(1, MERCHANT_MOE_ROUTER);
-  console.log("Set Merchant Moe adapter");
-  
-  await strategyRouter.setProtocolAdapter(2, INIT_CORE);
-  console.log("Set INIT Capital adapter");
+  // Protocol IDs: 1=Merchant Moe, 5=Lendle
+  const MERCHANT_MOE_ROUTER = process.env.MERCHANT_MOE_ROUTER;
+  const LENDLE_LENDING_POOL = process.env.LENDLE_LENDING_POOL;
+
+  if (!MERCHANT_MOE_ROUTER || !LENDLE_LENDING_POOL) {
+    console.warn("Missing MERCHANT_MOE_ROUTER or LENDLE_LENDING_POOL env vars. Skipping protocol setup.");
+  } else {
+    await strategyRouter.setProtocolAdapter(1, MERCHANT_MOE_ROUTER);
+    console.log("Set Merchant Moe adapter");
+
+    await strategyRouter.setProtocolAdapter(5, LENDLE_LENDING_POOL);
+    console.log("Set Lendle adapter");
+  }
 
   // Grant executor role to YieldAgent so it can run strategies
   const EXECUTOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("EXECUTOR_ROLE"));
@@ -69,17 +73,15 @@ async function main() {
   console.log("Granted EXECUTOR_ROLE to YieldAgent");
 
   // Approve common tokens
-  const TOKENS = {
-    WMNT: "0x78c1b0C915c4FAA5FffA6CAbf0219DA63d7f4cb8",
-    USDT: "0x201EBa5CC46D216Ce6DC03F6a759e8E766e956aE",
-    USDC: "0x09Bc4E0D864854c6aFB6eB9A9cdF58aC190D0dF9",
-    mETH: "0xcDA86A272531e8640cD7F1a92c01839911B90bb0",
-    cmETH: "0xE6829d9a7eE3040e1276Fa75293Bde931859e8fA",
-  };
+  const TOKENS = process.env.APPROVED_TOKENS?.split(",").map((t) => t.trim()).filter(Boolean) || [];
 
-  for (const [name, address] of Object.entries(TOKENS)) {
-    await strategyRouter.setTokenApproval(address, true);
-    console.log(`Approved token: ${name}`);
+  if (TOKENS.length === 0) {
+    console.warn("No APPROVED_TOKENS provided. Skipping token approvals.");
+  } else {
+    for (const address of TOKENS) {
+      await strategyRouter.setTokenApproval(address, true);
+      console.log(`Approved token: ${address}`);
+    }
   }
 
   // Also approve RWA token

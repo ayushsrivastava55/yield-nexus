@@ -11,9 +11,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Yield Nexus | RWA Yield Orchestration on Mantle",
+  title: "Meridian | Institutional DeFi on Mantle",
   description:
-    "AI-powered institutional infrastructure for compliant RWA issuance and autonomous yield optimization on Mantle Network",
+    "ERC-3643 compliant infrastructure meets autonomous AI agents. Discover, optimize, and execute yield strategies with full regulatory compliance.",
   keywords: [
     "Mantle",
     "RWA",
@@ -22,11 +22,13 @@ export const metadata: Metadata = {
     "ERC-3643",
     "Institutional",
     "AI Agents",
+    "Meridian",
+    "Compliance",
   ],
   openGraph: {
-    title: "Yield Nexus | RWA Yield Orchestration on Mantle",
+    title: "Meridian | Institutional DeFi Without Compromise",
     description:
-      "AI-powered institutional infrastructure for compliant RWA issuance and autonomous yield optimization",
+      "ERC-3643 compliant infrastructure meets autonomous AI agents. The future of institutional DeFi on Mantle.",
     type: "website",
   },
 };
@@ -38,6 +40,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <Providers>
           {children}

@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 
-const YieldContent = dynamic(() => import("./yield-content"), {
+const NewYieldContent = dynamic(() => import("./new-yield-content"), {
   ssr: false,
   loading: () => (
     <div className="flex min-h-[80vh] flex-col items-center justify-center">
@@ -13,5 +13,5 @@ const YieldContent = dynamic(() => import("./yield-content"), {
 });
 
 export default function YieldPage() {
-  return <YieldContent />;
+  return <NewYieldContent />;
 }

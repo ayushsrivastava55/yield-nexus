@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createPublicClient, http, formatEther } from "viem";
+import { CONTRACTS } from "@/lib/contracts/config";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 // Mantle Sepolia chain config
 const mantleSepolia = {
@@ -9,12 +10,16 @@ const mantleSepolia = {
   name: "Mantle Sepolia",
   nativeCurrency: { decimals: 18, name: "Mantle", symbol: "MNT" },
   rpcUrls: {
-    default: { http: ["https://rpc.sepolia.mantle.xyz"] },
+    default: {
+      http: [
+        process.env.NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_URL || "https://rpc.sepolia.mantle.xyz",
+      ],
+    },
   },
 };
 
 // YieldAgent contract address on Mantle Sepolia
-const YIELD_AGENT_ADDRESS = "0xD7E8c4E890933dff614c01cb5085fAf33B2A7F19";
+const YIELD_AGENT_ADDRESS = CONTRACTS.mantleSepolia.yieldAgent;
 
 // YieldAgent ABI for reading agent data
 const YIELD_AGENT_ABI = [
@@ -80,12 +85,33 @@ const YIELD_AGENT_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "agentId", type: "uint256" },
+      { indexed: false, name: "timestamp", type: "uint256" },
+      { indexed: false, name: "gasUsed", type: "uint256" },
+    ],
+    name: "Rebalanced",
+    type: "event",
+  },
 ] as const;
+
+const REBALANCED_EVENT = {
+  anonymous: false,
+  inputs: [
+    { indexed: true, name: "agentId", type: "uint256" },
+    { indexed: false, name: "timestamp", type: "uint256" },
+    { indexed: false, name: "gasUsed", type: "uint256" },
+  ],
+  name: "Rebalanced",
+  type: "event",
+} as const;
 
 // Create public client for Mantle Sepolia
 const client = createPublicClient({
   chain: mantleSepolia,
-  transport: http("https://rpc.sepolia.mantle.xyz"),
+  transport: http(mantleSepolia.rpcUrls.default.http[0]),
 });
 
 // Agent performance metrics structure
@@ -101,15 +127,13 @@ interface AgentMetrics {
   lastRebalance: string;
   strategies: {
     protocol: string;
-    allocation: number;
-    apy: number;
+    inputToken: string;
+    outputToken: string;
+    targetAllocation: number;
+    currentAllocation: number;
+    active: boolean;
   }[];
-  performance: {
-    day: number;
-    week: number;
-    month: number;
-  };
-  status: "active" | "paused" | "inactive";
+  status: "active" | "inactive";
   minRebalanceInterval: number;
   maxSlippage: number;
 }
@@ -132,7 +156,7 @@ async function fetchRealAgentData(): Promise<AgentMetrics[]> {
     // Fetch data for each agent
     for (let i = 0; i < totalAgents; i++) {
       try {
-        const [agentData, tvl, profits, gasSpent] = await Promise.all([
+        const [agentData, tvl, profits, gasSpent, strategies, rebalanceLogs] = await Promise.all([
           client.readContract({
             address: YIELD_AGENT_ADDRESS as `0x${string}`,
             abi: YIELD_AGENT_ABI,
@@ -157,11 +181,47 @@ async function fetchRealAgentData(): Promise<AgentMetrics[]> {
             functionName: "agentGasSpent",
             args: [BigInt(i)],
           }),
+          client.readContract({
+            address: YIELD_AGENT_ADDRESS as `0x${string}`,
+            abi: YIELD_AGENT_ABI,
+            functionName: "getAgentStrategies",
+            args: [BigInt(i)],
+          }),
+          client.getLogs({
+            address: YIELD_AGENT_ADDRESS as `0x${string}`,
+            event: REBALANCED_EVENT,
+            args: { agentId: BigInt(i) },
+            fromBlock: BigInt(0),
+            toBlock: "latest",
+          }),
         ]);
 
         const tvlNumber = Number(formatEther(tvl));
         const profitsNumber = Number(formatEther(profits));
         const gasSpentNumber = Number(gasSpent) / 1e9; // Convert gas to MNT estimate
+        const rebalanceCount = rebalanceLogs.length;
+        const lastRebalanceLog = rebalanceLogs[rebalanceLogs.length - 1];
+        const lastRebalanceTimestamp = lastRebalanceLog?.args?.timestamp
+          ? new Date(Number(lastRebalanceLog.args.timestamp) * 1000).toISOString()
+          : null;
+        const strategyList = (strategies as unknown[]).map((strategy) => {
+          const s = strategy as {
+            protocol: string;
+            inputToken: string;
+            outputToken: string;
+            targetAllocation: bigint;
+            currentAllocation: bigint;
+            active: boolean;
+          };
+          return {
+            protocol: s.protocol,
+            inputToken: s.inputToken,
+            outputToken: s.outputToken,
+            targetAllocation: Number(s.targetAllocation),
+            currentAllocation: Number(s.currentAllocation),
+            active: s.active,
+          };
+        });
 
         agents.push({
           agentId: i,
@@ -171,14 +231,9 @@ async function fetchRealAgentData(): Promise<AgentMetrics[]> {
           totalProfit: profitsNumber,
           profitPercent: tvlNumber > 0 ? (profitsNumber / tvlNumber) * 100 : 0,
           gasSpent: gasSpentNumber,
-          rebalanceCount: 0, // Would need event logs to track
-          lastRebalance: new Date().toISOString(),
-          strategies: [], // Would need to fetch from getAgentStrategies
-          performance: {
-            day: 0,
-            week: 0,
-            month: 0,
-          },
+          rebalanceCount,
+          lastRebalance: lastRebalanceTimestamp || "N/A",
+          strategies: strategyList,
           status: agentData[5] ? "active" : "inactive",
           minRebalanceInterval: Number(agentData[2]),
           maxSlippage: Number(agentData[3]),

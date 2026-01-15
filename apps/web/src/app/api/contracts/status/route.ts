@@ -7,13 +7,17 @@ const mantleSepolia = {
   name: "Mantle Sepolia",
   nativeCurrency: { decimals: 18, name: "Mantle", symbol: "MNT" },
   rpcUrls: {
-    default: { http: ["https://rpc.sepolia.mantle.xyz"] },
+    default: {
+      http: [
+        process.env.NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_URL || "https://rpc.sepolia.mantle.xyz",
+      ],
+    },
   },
 };
 
 const client = createPublicClient({
   chain: mantleSepolia,
-  transport: http("https://rpc.sepolia.mantle.xyz"),
+  transport: http(mantleSepolia.rpcUrls.default.http[0]),
 });
 
 const CONTRACT_LIST = [

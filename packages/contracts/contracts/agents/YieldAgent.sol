@@ -18,6 +18,7 @@ interface IStrategyRouter {
         uint256 maxSlippage,
         bool active
     );
+    function getAllStrategies() external view returns (bytes32[] memory);
 }
 
 /**
@@ -49,6 +50,7 @@ contract YieldAgent is AccessControl, Pausable, ReentrancyGuard, AutomationCompa
         uint256 targetAllocation; // In basis points (10000 = 100%)
         uint256 currentAllocation;
         bool active;
+        bytes32 routerStrategyId; // Strategy ID in StrategyRouter for real execution
     }
 
     // Agent state
@@ -120,6 +122,45 @@ contract YieldAgent is AccessControl, Pausable, ReentrancyGuard, AutomationCompa
 
     /**
      * @dev Add a strategy to an agent
+     * @param _routerStrategyId The strategy ID from StrategyRouter for real execution (pass bytes32(0) if not using router)
+     */
+    function addStrategy(
+        uint256 _agentId,
+        address _protocol,
+        address _inputToken,
+        address _outputToken,
+        uint256 _targetAllocation,
+        bytes32 _routerStrategyId
+    ) external {
+        require(agents[_agentId].owner == msg.sender, "Not agent owner");
+        require(approvedProtocols[_protocol], "Protocol not approved");
+        require(_targetAllocation <= 10000, "Allocation > 100%");
+
+        // Check total allocation doesn't exceed 100%
+        uint256 totalAllocation = _targetAllocation;
+        Strategy[] storage strategies = agentStrategies[_agentId];
+        for (uint256 i = 0; i < strategies.length; i++) {
+            if (strategies[i].active) {
+                totalAllocation += strategies[i].targetAllocation;
+            }
+        }
+        require(totalAllocation <= 10000, "Total allocation > 100%");
+
+        strategies.push(Strategy({
+            protocol: _protocol,
+            inputToken: _inputToken,
+            outputToken: _outputToken,
+            targetAllocation: _targetAllocation,
+            currentAllocation: 0,
+            active: true,
+            routerStrategyId: _routerStrategyId
+        }));
+
+        emit StrategyAdded(_agentId, strategies.length - 1, _protocol);
+    }
+
+    /**
+     * @dev Add a strategy to an agent (legacy function without router strategy ID)
      */
     function addStrategy(
         uint256 _agentId,
@@ -148,7 +189,8 @@ contract YieldAgent is AccessControl, Pausable, ReentrancyGuard, AutomationCompa
             outputToken: _outputToken,
             targetAllocation: _targetAllocation,
             currentAllocation: 0,
-            active: true
+            active: true,
+            routerStrategyId: bytes32(0)
         }));
 
         emit StrategyAdded(_agentId, strategies.length - 1, _protocol);
@@ -307,18 +349,101 @@ contract YieldAgent is AccessControl, Pausable, ReentrancyGuard, AutomationCompa
     }
 
     /**
-     * @dev Internal rebalance execution
+     * @dev Internal rebalance execution - executes real trades via StrategyRouter
      */
     function _executeRebalance(uint256 _agentId) internal {
+        require(address(strategyRouter) != address(0), "Strategy router not set");
+
+        AgentConfig storage agent = agents[_agentId];
         Strategy[] storage strategies = agentStrategies[_agentId];
-        
+
+        // Calculate total value in agent (simplified: sum of all token balances)
+        uint256 totalValue = _calculateTotalValue(_agentId, strategies);
+        if (totalValue == 0) {
+            // No funds to rebalance, just update allocations
+            for (uint256 i = 0; i < strategies.length; i++) {
+                if (strategies[i].active) {
+                    strategies[i].currentAllocation = strategies[i].targetAllocation;
+                }
+            }
+            return;
+        }
+
+        // Execute rebalancing for each strategy that has drift
+        for (uint256 i = 0; i < strategies.length; i++) {
+            Strategy storage strategy = strategies[i];
+            if (!strategy.active) continue;
+
+            // Calculate current value for this strategy's output token
+            uint256 currentValue = agentBalances[_agentId][strategy.outputToken];
+            uint256 currentAllocationBps = (currentValue * 10000) / totalValue;
+
+            // Calculate drift
+            uint256 drift = _calculateDrift(currentAllocationBps, strategy.targetAllocation);
+
+            // Only rebalance if drift > 5% (500 bps)
+            if (drift > 500 && strategy.routerStrategyId != bytes32(0)) {
+                _executeStrategyRebalance(_agentId, strategy, totalValue, currentValue, agent.maxSlippage);
+            }
+
+            // Update current allocation
+            strategy.currentAllocation = (agentBalances[_agentId][strategy.outputToken] * 10000) / totalValue;
+        }
+    }
+
+    /**
+     * @dev Calculate total value across all tokens in an agent
+     */
+    function _calculateTotalValue(uint256 _agentId, Strategy[] storage strategies) internal view returns (uint256 totalValue) {
+        // Add input token balances
         for (uint256 i = 0; i < strategies.length; i++) {
             if (strategies[i].active) {
-                // In production, this would call protocol adapters
-                // For MVP, we just update allocation tracking
-                strategies[i].currentAllocation = strategies[i].targetAllocation;
+                totalValue += agentBalances[_agentId][strategies[i].inputToken];
+                totalValue += agentBalances[_agentId][strategies[i].outputToken];
             }
         }
+    }
+
+    /**
+     * @dev Execute strategy rebalance via StrategyRouter
+     */
+    function _executeStrategyRebalance(
+        uint256 _agentId,
+        Strategy storage strategy,
+        uint256 totalValue,
+        uint256 currentValue,
+        uint256 maxSlippage
+    ) internal {
+        uint256 targetValue = (totalValue * strategy.targetAllocation) / 10000;
+
+        if (currentValue < targetValue) {
+            // Need to buy more of output token
+            uint256 amountToBuy = targetValue - currentValue;
+            uint256 inputBalance = agentBalances[_agentId][strategy.inputToken];
+
+            if (inputBalance > 0 && amountToBuy > 0) {
+                uint256 amountToSwap = amountToBuy > inputBalance ? inputBalance : amountToBuy;
+                uint256 minAmountOut = (amountToSwap * (10000 - maxSlippage)) / 10000;
+
+                // Update balances before external call
+                agentBalances[_agentId][strategy.inputToken] -= amountToSwap;
+
+                // Approve and execute via router
+                IERC20(strategy.inputToken).safeIncreaseAllowance(address(strategyRouter), amountToSwap);
+
+                try strategyRouter.executeStrategy(strategy.routerStrategyId, amountToSwap, minAmountOut) returns (uint256 amountOut) {
+                    agentBalances[_agentId][strategy.outputToken] += amountOut;
+                    if (amountOut > amountToSwap) {
+                        agentProfits[_agentId] += (amountOut - amountToSwap);
+                    }
+                    emit StrategyExecuted(_agentId, strategy.routerStrategyId, amountToSwap, amountOut);
+                } catch {
+                    // Revert balance change on failure
+                    agentBalances[_agentId][strategy.inputToken] += amountToSwap;
+                }
+            }
+        }
+        // Note: Selling (currentValue > targetValue) would require reverse strategy
     }
 
     /**

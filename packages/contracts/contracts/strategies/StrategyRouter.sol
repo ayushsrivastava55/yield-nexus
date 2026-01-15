@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../integrations/IMerchantMoe.sol";
+import "../integrations/ILendlePool.sol";
 
 interface AggregatorV3Interface {
     function decimals() external view returns (uint8);
@@ -37,6 +38,7 @@ contract StrategyRouter is AccessControl, ReentrancyGuard {
     uint8 public constant PROTOCOL_INIT_CAPITAL = 2;
     uint8 public constant PROTOCOL_RENZO = 3;
     uint8 public constant PROTOCOL_METH = 4;
+    uint8 public constant PROTOCOL_LENDLE = 5;
 
     // Protocol adapters
     mapping(uint8 => address) public protocolAdapters;
@@ -242,9 +244,10 @@ contract StrategyRouter is AccessControl, ReentrancyGuard {
 
         if (strategy.protocolId == PROTOCOL_MERCHANT_MOE) {
             amountOut = _executeMerchantMoe(strategyId, strategy, amount, minAmountOut);
+        } else if (strategy.protocolId == PROTOCOL_LENDLE) {
+            amountOut = _executeLendle(strategy, amount);
         } else {
-            // Execute via adapter (placeholder for other protocols)
-            amountOut = _simulateExecution(strategy, amount);
+            revert("Protocol not supported");
         }
         
         require(amountOut >= minAmountOut, "Slippage exceeded");
@@ -320,25 +323,19 @@ contract StrategyRouter is AccessControl, ReentrancyGuard {
     }
 
     /**
-     * @notice Simulate strategy execution (placeholder for actual protocol calls)
-     * @dev In production, this would call the actual protocol adapters
+     * @notice Execute Lendle deposit strategy
+     * @dev Requires outputToken to be the Lendle aToken for the input asset
      */
-    function _simulateExecution(Strategy storage strategy, uint256 amount) internal view returns (uint256) {
-        // Simulate based on protocol type
-        if (strategy.protocolId == PROTOCOL_MERCHANT_MOE) {
-            // DEX swap - assume 0.3% fee
-            return amount * 997 / 1000;
-        } else if (strategy.protocolId == PROTOCOL_INIT_CAPITAL) {
-            // Lending deposit - 1:1 for shares
-            return amount;
-        } else if (strategy.protocolId == PROTOCOL_RENZO) {
-            // Liquid restaking - slight premium
-            return amount * 1001 / 1000;
-        } else if (strategy.protocolId == PROTOCOL_METH) {
-            // mETH staking
-            return amount;
-        }
-        return amount;
+    function _executeLendle(Strategy storage strategy, uint256 amount) internal returns (uint256 amountOut) {
+        address pool = protocolAdapters[strategy.protocolId];
+        require(pool != address(0), "Adapter not set");
+
+        uint256 beforeBalance = IERC20(strategy.outputToken).balanceOf(address(this));
+        ILendlePool(pool).deposit(strategy.inputToken, amount, address(this), 0);
+        uint256 afterBalance = IERC20(strategy.outputToken).balanceOf(address(this));
+        amountOut = afterBalance - beforeBalance;
+
+        IERC20(strategy.outputToken).safeTransfer(msg.sender, amountOut);
     }
 
     /**

@@ -1,13 +1,24 @@
 // Deployed contract addresses on Mantle Sepolia
 export const CONTRACTS = {
   mantleSepolia: {
-    identityRegistry: "0x9Cc3F9D6Eb74b6b86B6F612941eDC8d25050147F" as `0x${string}`,
-    complianceModule: "0x3a7f6A3F8Ef685Aa4f2CA6d83a9995A9f3968f80" as `0x${string}`,
-    rwaToken: "0xFcD83652EEAA56Ea270300C26D7Ac80d710b067D" as `0x${string}`,
-    yieldAgent: "0x5e06853cF65D52f2607CE967918a854c7d480A7f" as `0x${string}`,
-    strategyRouter: "0x3eb0791a5d27167b44713A45De98492e82B4955A" as `0x${string}`,
-    yieldVault: "0xD7044e9D798B5d2F6d18464bd3b8cb21f489E4EA" as `0x${string}`,
+    identityRegistry: (process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ADDRESS ||
+      "0x9Cc3F9D6Eb74b6b86B6F612941eDC8d25050147F") as `0x${string}`,
+    complianceModule: (process.env.NEXT_PUBLIC_COMPLIANCE_MODULE_ADDRESS ||
+      "0x3a7f6A3F8Ef685Aa4f2CA6d83a9995A9f3968f80") as `0x${string}`,
+    rwaToken: (process.env.NEXT_PUBLIC_RWA_TOKEN_ADDRESS ||
+      "0xFcD83652EEAA56Ea270300C26D7Ac80d710b067D") as `0x${string}`,
+    yieldAgent: (process.env.NEXT_PUBLIC_YIELD_AGENT_ADDRESS ||
+      "0x5e06853cF65D52f2607CE967918a854c7d480A7f") as `0x${string}`,
+    strategyRouter: (process.env.NEXT_PUBLIC_STRATEGY_ROUTER_ADDRESS ||
+      "0x3eb0791a5d27167b44713A45De98492e82B4955A") as `0x${string}`,
+    yieldVault: (process.env.NEXT_PUBLIC_YIELD_VAULT_ADDRESS ||
+      "0xD7044e9D798B5d2F6d18464bd3b8cb21f489E4EA") as `0x${string}`,
   },
+} as const;
+
+export const PROTOCOL_ADAPTERS = {
+  merchantMoe: (process.env.NEXT_PUBLIC_MERCHANT_MOE_ROUTER_ADDRESS || "") as `0x${string}`,
+  lendle: (process.env.NEXT_PUBLIC_LENDLE_LENDING_POOL_ADDRESS || "") as `0x${string}`,
 } as const;
 
 // ABIs for contract interactions
@@ -38,6 +49,17 @@ export const IDENTITY_REGISTRY_ABI = [
     name: "getKYCTier",
     outputs: [{ name: "", type: "uint8" }],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { name: "_investor", type: "address" },
+      { name: "_kycTier", type: "uint8" },
+      { name: "_country", type: "string" },
+    ],
+    name: "registerIdentity",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
 ] as const;
